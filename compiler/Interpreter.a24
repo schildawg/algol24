@@ -1865,6 +1865,16 @@ begin
               or Obj.Klass.DeclaresField (Folded)
               or Obj.Klass.FindMethod (Folded) <> Nil;
 
+        // A CLASS VALUE'S SURFACE IS A MEMBER LIST LIKE ANY OTHER, so a
+        // member wins over an extension of the name [EXP-022].  Asked here
+        // rather than through Obj.Get below because a class is not in the
+        // list that follows -- which is why an extension called `Name` used
+        // to capture `T.Name`.
+        if Obj is ObjClass then
+            Exit Folded = 'name'       or Folded = 'parent'
+              or Folded = 'fields'     or Folded = 'methods'
+              or Folded = 'properties' or Folded = 'accepts';
+
         if not (Obj is ObjEnumType or Obj is ObjEnum
              or Obj is ObjCollection or Obj is ObjFile
              or Obj is ObjBuffer) then Exit False;
@@ -1957,6 +1967,11 @@ begin
             if Asked = FoldCase ('Name') then Exit Str ((Obj as ObjClass).Name);
 
             if Asked = FoldCase ('Parent') then Exit (Obj as ObjClass).Superclass;
+
+            // The one member of the surface that takes an argument, so it is
+            // read as something callable and called [RT-035].
+            if Asked = FoldCase ('Accepts') then
+                Exit ClassMethod (Obj as ObjClass, TheExpr.Name);
 
             if Asked = FoldCase ('Fields') then
             begin

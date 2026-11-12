@@ -2146,9 +2146,12 @@ end
 /// 0033-no-computed-property is about.  Anything else gets the five
 /// properties the runtime has.
 ///
-/// A method reached WITHOUT parentheses is the method as a value, which wants
-/// a bound-method object this machine does not have yet -- so it is refused by
-/// name rather than answered wrongly.
+/// A method reached WITHOUT parentheses is the method as a value [FUN-011],
+/// answered as a VmBound carrying the receiver it was read from -- which is
+/// also how a class value's one method is answered, since CallValue sends a
+/// VmBound back through InvokeMember.  This said the machine had no such
+/// object and refused the read by name, which stopped being true when VmBound
+/// was written.
 ///
 /// # Raises
 ///
@@ -2183,6 +2186,13 @@ begin
     begin
         if Named = 'name'   then Exit Str ((Self as VmClass).Name);
         if Named = 'parent' then Exit (Self as VmClass).Parent;
+
+        // The one member of the surface that takes an argument, so it answers
+        // a bound member here and is decided in InvokeMember [RT-035] -- which
+        // is what makes `T.Accepts` held as a value and `T.Accepts (X)` the
+        // same one decision, since CallValue sends a VmBound back through
+        // InvokeMember.
+        if Named = 'accepts' then Exit VmBound (Self, Str (Written));
 
         if Named = 'fields' then
         begin
@@ -2420,8 +2430,17 @@ begin
 
     if Self is VmEnum then Exit Named = 'ordinal' or Named = 'name';
 
+    // A CLASS VALUE'S SURFACE IS A MEMBER LIST LIKE ANY OTHER, so a member
+    // wins over an extension of the name [EXP-022].  This answered False for
+    // every name, so an extension called `Name` or `Accepts` captured the
+    // call on a class.
+    if Self is VmClass then
+        Exit Named = 'name'       or Named = 'parent'
+          or Named = 'fields'     or Named = 'methods'
+          or Named = 'properties' or Named = 'accepts';
+
     if Self is VmFunction or Self is VmClosure
-            or Self is VmClass or Self is VmOverloads
+            or Self is VmOverloads
             or Self is VmExtension then Exit False;
 
     // The runtime's five properties, then the host's methods.
@@ -2617,6 +2636,37 @@ begin
         Self := Materialised (Self);
 
         Slots[SP - Count - 1] := Self;
+    end
+
+    // A TYPE VALUE answers ONE method, and a program's own are not among
+    // them: a method wants an instance, so a class value's surface is the
+    // runtime's alone [RT-032] and nothing a program declares is shadowed.
+    //
+    // Answered through TypeMatches, so the dynamic test and the written `is`
+    // are one decision [RT-035]: a subclass instance, a built-in type's name
+    // and a nil each answer whatever the machine already makes them answer.
+    if Self is VmClass then
+    begin
+        if Name = 'accepts' then
+        begin
+            if Count <> 1 then
+                raise 'Expected 1 arguments but got ' + Str (Count) + '.';
+
+            var Asked := Pop ();
+
+            Pop ();
+
+            // ⚠️ TypeMatches TAKES A FOLDED NAME, which two ToLower calls
+            // inside it hide: the subrange lookup and the singleton recursion
+            // fold, and every comparison after them is against a lowercase
+            // literal.  Handing it the written `Integer` made it answer false
+            // for everything, including `TypeOf (5).Accepts (5)`.
+            Push (TypeMatches (Asked, ToLower (Str ((Self as VmClass).Name))));
+
+            Exit;
+        end
+
+        raise 'Undefined property ' + QUOTE + Str (Written) + QUOTE + '.';
     end
 
     if Self is VmInstance then

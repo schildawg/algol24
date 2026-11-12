@@ -3333,6 +3333,14 @@ Value alg_property(Value receiver, const char *name) {
         if (alg_stricmp(name, "Parent") == 0)
             return klass->super == NULL ? alg_nil() : object((Obj *)klass->super);
 
+        /* The one member of the surface that takes an argument, so it answers
+           a bound member here and is decided in alg_invoke [RT-035] -- which
+           is what makes `T.Accepts` held as a value and `T.Accepts (X)` the
+           same one decision, since a bound built-in is called back through
+           alg_invoke. */
+        if (alg_stricmp(name, "Accepts") == 0)
+            return builtin_bound(receiver, "Accepts", 1);
+
         undefined("property", name);
     }
 
@@ -3622,6 +3630,18 @@ bool alg_responds(Value receiver, const char *name) {
         return false;
     }
 
+    /* A CLASS VALUE'S SURFACE IS A MEMBER LIST LIKE ANY OTHER, so a member
+       wins over an extension of the name [EXP-022].  Without this an
+       extension called `Name` or `Accepts` captured the call, since member_of
+       below knows nothing about a class. */
+    if (is_obj(receiver, OBJ_CLASS))
+        return alg_stricmp(name, "Name") == 0
+            || alg_stricmp(name, "Fields") == 0
+            || alg_stricmp(name, "Methods") == 0
+            || alg_stricmp(name, "Properties") == 0
+            || alg_stricmp(name, "Parent") == 0
+            || alg_stricmp(name, "Accepts") == 0;
+
     /* A String has the one property and no methods at all. */
     if (receiver.type == VAL_STRING) return alg_stricmp(name, "Length") == 0;
 
@@ -3746,8 +3766,37 @@ static Value invoke_found(MethodEntry *method, Value receiver, Value *args, int3
     return method->fn(receiver, args, count);
 }
 
+/* `T.Accepts (X)`: whether a value satisfies a type held as a VALUE.
+   ⚠️ IT ANSWERS THROUGH alg_is, BY NAME, and that is deliberate.  `X is T`
+   written out is resolved where the C is emitted -- a kind code, or an
+   ObjClass pointer -- which a computed type cannot be, so this takes the one
+   path that works from a name.  Answering by name also keeps it agreeing with
+   the other two processors, which match a class by name throughout. */
+static Value class_accepts(Value receiver, Value *args, int32_t count) {
+    if (count != 1) {
+        char message[96];
+
+        snprintf(message, sizeof message,
+                 "Expected 1 arguments but got %d.", count);
+        alg_error(message);
+    }
+
+    return alg_is(args[0], ((ObjClass *)receiver.obj)->name);
+}
+
 Value alg_invoke(Value receiver, const char *name, Value *args, int32_t count) {
     check_live(receiver, "a method call");
+
+    /* A TYPE VALUE answers ONE method, and a program's own are not among them:
+       a method wants an instance, so a class value's surface is the runtime's
+       alone [RT-032] and nothing a program declares can be shadowed by it. */
+    if (is_obj(receiver, OBJ_CLASS)) {
+        if (alg_stricmp(name, "Accepts") == 0)
+            return class_accepts(receiver, args, count);
+
+        undefined("property", name);
+    }
+
     if (is_obj(receiver, OBJ_INSTANCE)) {
         ObjInstance *instance = (ObjInstance *)receiver.obj;
 

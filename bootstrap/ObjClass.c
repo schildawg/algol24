@@ -4,6 +4,9 @@
 #include "ObjFunction.h"
 #include "ObjInstance.h"
 
+Value k_classmethod;
+static const char *t_classmethod_init_2_objclass_token[] = { "Receiver : ObjClass", "Name : Token" };
+static const char *t_classmethod_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_objclass;
 static Value or_0;
 static const char *t_objclass_init_4_string_objclass_map_list[] = { "Name : String", "Superclass : ObjClass", "Methods : Map", "Fields : List" };
@@ -17,6 +20,88 @@ static const char *t_objclass_seedfields_2_objinstance[] = { "Instance : ObjInst
 static const char *t_objclass_fieldsinto_1_map[] = { "Into : Map" };
 static const char *t_objclass_absorbs_1_list[] = { "Arguments : List" };
 static const char *t_objclass_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
+
+static Value i_classmethod(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_set_property(v_this, "Receiver", alg_nil());
+    alg_set_property(v_this, "Name", alg_nil());
+    alg_root_top = rt_base;
+    return alg_nil();
+}
+
+static Value m_classmethod_init_2_objclass_token(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
+    Value v_receiver = alg_widen(args[0], "ObjClass");
+    (void)v_receiver;
+    alg_root(&v_receiver, 1);
+    Value v_name = alg_widen(args[1], "Token");
+    (void)v_name;
+    alg_root(&v_name, 1);
+    int32_t rh_233 = alg_hold_top;
+    (void)(alg_hold(alg_set_property(v_this, "Receiver", v_receiver)));
+    alg_hold_top = rh_233;
+    (void)(alg_hold(alg_set_property(v_this, "Name", v_name)));
+    alg_hold_top = rh_233;
+    Value ret_0 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_0;
+}
+
+static Value m_classmethod_arity_0(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
+    int32_t rh_234 = alg_hold_top;
+    Value ret_1 = alg_int(1);
+    alg_root_top = rt_base;
+    return ret_1;
+    alg_hold_top = rh_234;
+    Value ret_2 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_2;
+}
+
+static Value m_classmethod_call_2(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
+    Value v_theinterpreter = args[0];
+    (void)v_theinterpreter;
+    alg_root(&v_theinterpreter, 1);
+    Value v_arguments = args[1];
+    (void)v_arguments;
+    alg_root(&v_arguments, 1);
+    int32_t rh_235 = alg_hold_top;
+    Value ret_3 = alg_hold(alg_invoke(v_theinterpreter, "SatisfiesType", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0))), alg_hold(alg_property(alg_property(v_this, "Receiver"), "Name"))}, 2));
+    alg_root_top = rt_base;
+    return ret_3;
+    alg_hold_top = rh_235;
+    Value ret_4 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_4;
+}
+
+static Value m_classmethod_tostring_0(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
+    int32_t rh_236 = alg_hold_top;
+    Value ret_5 = alg_hold(alg_add(alg_hold(alg_add(alg_literal("<fn "), alg_hold(alg_str(alg_hold(alg_property(alg_property(v_this, "Name"), "Lexeme")))))), alg_char_value(62)));
+    alg_root_top = rt_base;
+    return ret_5;
+    alg_hold_top = rh_236;
+    Value ret_6 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_6;
+}
 
 static Value i_objclass(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
@@ -48,18 +133,18 @@ static Value m_objclass_init_4_string_objclass_map_list(Value v_this, Value *arg
     Value v_fields = alg_widen(args[3], "List");
     (void)v_fields;
     alg_root(&v_fields, 1);
-    int32_t rh_233 = alg_hold_top;
+    int32_t rh_237 = alg_hold_top;
     (void)(alg_hold(alg_set_property(v_this, "Name", v_name)));
-    alg_hold_top = rh_233;
+    alg_hold_top = rh_237;
     (void)(alg_hold(alg_set_property(v_this, "Methods", v_methods)));
-    alg_hold_top = rh_233;
+    alg_hold_top = rh_237;
     (void)(alg_hold(alg_set_property(v_this, "Superclass", v_superclass)));
-    alg_hold_top = rh_233;
+    alg_hold_top = rh_237;
     (void)(alg_hold(alg_set_property(v_this, "Fields", v_fields)));
-    alg_hold_top = rh_233;
-    Value ret_0 = alg_nil();
+    alg_hold_top = rh_237;
+    Value ret_7 = alg_nil();
     alg_root_top = rt_base;
-    return ret_0;
+    return ret_7;
 }
 
 static Value m_objclass_methodofarity_2_string_integer(Value v_this, Value *args, int32_t count) {
@@ -73,49 +158,49 @@ static Value m_objclass_methodofarity_2_string_integer(Value v_this, Value *args
     Value v_thearity = alg_widen(args[1], "Integer");
     (void)v_thearity;
     alg_root(&v_thearity, 1);
-    int32_t rh_234 = alg_hold_top;
+    int32_t rh_238 = alg_hold_top;
     if (alg_truthy(alg_hold(alg_invoke(alg_property(v_this, "Methods"), "Contains", (Value[]){v_name}, 1)))) {
         {
-            int32_t rt_235 = alg_root_top;
-            int32_t rh_236 = alg_hold_top;
+            int32_t rt_239 = alg_root_top;
+            int32_t rh_240 = alg_hold_top;
             Value v_found = alg_hold(alg_invoke(alg_property(v_this, "Methods"), "Get", (Value[]){v_name}, 1));
             (void)v_found;
             alg_root(&v_found, 1);
-            alg_hold_top = rh_236;
+            alg_hold_top = rh_240;
             {
-                int32_t rt_237 = alg_root_top;
-                Value loop_1 = alg_iterable(v_found);
-                (void)loop_1;
-                alg_root(&loop_1, 1);
-                for (int32_t at_1 = 0; at_1 < alg_iterable_count(loop_1); at_1++) {
+                int32_t rt_241 = alg_root_top;
+                Value loop_8 = alg_iterable(v_found);
+                (void)loop_8;
+                alg_root(&loop_8, 1);
+                for (int32_t at_8 = 0; at_8 < alg_iterable_count(loop_8); at_8++) {
                     alg_safe_point();
-                    int32_t rt_238 = alg_root_top;
-                    Value v_each = alg_iterable_at(loop_1, at_1);
+                    int32_t rt_242 = alg_root_top;
+                    Value v_each = alg_iterable_at(loop_8, at_8);
                     (void)v_each;
                     alg_root(&v_each, 1);
                     if (alg_truthy(alg_hold(alg_equal(alg_hold(alg_invoke(v_each, "Arity", NULL, 0)), v_thearity)))) {
-                        Value ret_2 = alg_cast_class(v_each, k_objfunction, "ObjFunction");
+                        Value ret_9 = alg_cast_class(v_each, k_objfunction, "ObjFunction");
                         alg_root_top = rt_base;
-                        return ret_2;
+                        return ret_9;
                     }
-                    alg_root_top = rt_238;
+                    alg_root_top = rt_242;
                 }
-                alg_root_top = rt_237;
+                alg_root_top = rt_241;
             }
-            alg_hold_top = rh_236;
-            alg_root_top = rt_235;
+            alg_hold_top = rh_240;
+            alg_root_top = rt_239;
         }
     }
-    alg_hold_top = rh_234;
+    alg_hold_top = rh_238;
     if (alg_truthy(alg_hold(alg_not_equal(alg_property(v_this, "Superclass"), alg_nil())))) {
-        Value ret_3 = alg_hold(alg_invoke(alg_property(v_this, "Superclass"), "MethodOfArity", (Value[]){v_name, v_thearity}, 2));
+        Value ret_10 = alg_hold(alg_invoke(alg_property(v_this, "Superclass"), "MethodOfArity", (Value[]){v_name, v_thearity}, 2));
         alg_root_top = rt_base;
-        return ret_3;
+        return ret_10;
     }
-    alg_hold_top = rh_234;
-    Value ret_4 = alg_nil();
+    alg_hold_top = rh_238;
+    Value ret_11 = alg_nil();
     alg_root_top = rt_base;
-    return ret_4;
+    return ret_11;
 }
 
 static Value m_objclass_declaresfield_1_string(Value v_this, Value *args, int32_t count) {
@@ -126,41 +211,41 @@ static Value m_objclass_declaresfield_1_string(Value v_this, Value *args, int32_
     Value v_name = alg_widen(args[0], "String");
     (void)v_name;
     alg_root(&v_name, 1);
-    int32_t rh_239 = alg_hold_top;
+    int32_t rh_243 = alg_hold_top;
     {
-        int32_t rt_240 = alg_root_top;
-        Value loop_5 = alg_iterable(alg_property(v_this, "Fields"));
-        (void)loop_5;
-        alg_root(&loop_5, 1);
-        for (int32_t at_5 = 0; at_5 < alg_iterable_count(loop_5); at_5++) {
+        int32_t rt_244 = alg_root_top;
+        Value loop_12 = alg_iterable(alg_property(v_this, "Fields"));
+        (void)loop_12;
+        alg_root(&loop_12, 1);
+        for (int32_t at_12 = 0; at_12 < alg_iterable_count(loop_12); at_12++) {
             alg_safe_point();
-            int32_t rt_241 = alg_root_top;
-            Value v_field = alg_iterable_at(loop_5, at_5);
+            int32_t rt_245 = alg_root_top;
+            Value v_field = alg_iterable_at(loop_12, at_12);
             (void)v_field;
             alg_root(&v_field, 1);
             if (alg_truthy(alg_hold(alg_equal(alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(alg_hold(alg_property(v_field, "Name")), "Lexeme"))}, 1)), v_name)))) {
-                Value ret_6 = alg_bool(true);
+                Value ret_13 = alg_bool(true);
                 alg_root_top = rt_base;
-                return ret_6;
+                return ret_13;
             }
-            alg_root_top = rt_241;
+            alg_root_top = rt_245;
         }
-        alg_root_top = rt_240;
+        alg_root_top = rt_244;
     }
-    alg_hold_top = rh_239;
+    alg_hold_top = rh_243;
     if (alg_truthy(alg_hold(alg_not_equal(alg_property(v_this, "Superclass"), alg_nil())))) {
-        Value ret_7 = alg_hold(alg_invoke(alg_property(v_this, "Superclass"), "DeclaresField", (Value[]){v_name}, 1));
+        Value ret_14 = alg_hold(alg_invoke(alg_property(v_this, "Superclass"), "DeclaresField", (Value[]){v_name}, 1));
         alg_root_top = rt_base;
-        return ret_7;
+        return ret_14;
     }
-    alg_hold_top = rh_239;
-    Value ret_8 = alg_bool(false);
+    alg_hold_top = rh_243;
+    Value ret_15 = alg_bool(false);
     alg_root_top = rt_base;
-    return ret_8;
-    alg_hold_top = rh_239;
-    Value ret_9 = alg_nil();
+    return ret_15;
+    alg_hold_top = rh_243;
+    Value ret_16 = alg_nil();
     alg_root_top = rt_base;
-    return ret_9;
+    return ret_16;
 }
 
 static Value m_objclass_declaredtypeof_1_string(Value v_this, Value *args, int32_t count) {
@@ -171,41 +256,41 @@ static Value m_objclass_declaredtypeof_1_string(Value v_this, Value *args, int32
     Value v_name = alg_widen(args[0], "String");
     (void)v_name;
     alg_root(&v_name, 1);
-    int32_t rh_242 = alg_hold_top;
+    int32_t rh_246 = alg_hold_top;
     {
-        int32_t rt_243 = alg_root_top;
-        Value loop_10 = alg_iterable(alg_property(v_this, "Fields"));
-        (void)loop_10;
-        alg_root(&loop_10, 1);
-        for (int32_t at_10 = 0; at_10 < alg_iterable_count(loop_10); at_10++) {
+        int32_t rt_247 = alg_root_top;
+        Value loop_17 = alg_iterable(alg_property(v_this, "Fields"));
+        (void)loop_17;
+        alg_root(&loop_17, 1);
+        for (int32_t at_17 = 0; at_17 < alg_iterable_count(loop_17); at_17++) {
             alg_safe_point();
-            int32_t rt_244 = alg_root_top;
-            Value v_field = alg_iterable_at(loop_10, at_10);
+            int32_t rt_248 = alg_root_top;
+            Value v_field = alg_iterable_at(loop_17, at_17);
             (void)v_field;
             alg_root(&v_field, 1);
             if (alg_truthy(alg_hold(alg_equal(alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(alg_hold(alg_property(v_field, "Name")), "Lexeme"))}, 1)), v_name)))) {
-                Value ret_11 = alg_hold(f_canonicaltype(NULL, (Value[]){alg_hold(alg_str(alg_hold(alg_property(v_field, "TypeName"))))}, 1));
+                Value ret_18 = alg_hold(f_canonicaltype(NULL, (Value[]){alg_hold(alg_str(alg_hold(alg_property(v_field, "TypeName"))))}, 1));
                 alg_root_top = rt_base;
-                return ret_11;
+                return ret_18;
             }
-            alg_root_top = rt_244;
+            alg_root_top = rt_248;
         }
-        alg_root_top = rt_243;
+        alg_root_top = rt_247;
     }
-    alg_hold_top = rh_242;
+    alg_hold_top = rh_246;
     if (alg_truthy(alg_hold(alg_not_equal(alg_property(v_this, "Superclass"), alg_nil())))) {
-        Value ret_12 = alg_hold(alg_invoke(alg_property(v_this, "Superclass"), "DeclaredTypeOf", (Value[]){v_name}, 1));
+        Value ret_19 = alg_hold(alg_invoke(alg_property(v_this, "Superclass"), "DeclaredTypeOf", (Value[]){v_name}, 1));
         alg_root_top = rt_base;
-        return ret_12;
+        return ret_19;
     }
-    alg_hold_top = rh_242;
-    Value ret_13 = alg_literal("");
+    alg_hold_top = rh_246;
+    Value ret_20 = alg_literal("");
     alg_root_top = rt_base;
-    return ret_13;
-    alg_hold_top = rh_242;
-    Value ret_14 = alg_nil();
+    return ret_20;
+    alg_hold_top = rh_246;
+    Value ret_21 = alg_nil();
     alg_root_top = rt_base;
-    return ret_14;
+    return ret_21;
 }
 
 static Value m_objclass_findmethod_1_string(Value v_this, Value *args, int32_t count) {
@@ -216,38 +301,38 @@ static Value m_objclass_findmethod_1_string(Value v_this, Value *args, int32_t c
     Value v_name = alg_widen(args[0], "String");
     (void)v_name;
     alg_root(&v_name, 1);
-    int32_t rh_245 = alg_hold_top;
+    int32_t rh_249 = alg_hold_top;
     if (alg_truthy(alg_hold(alg_invoke(alg_property(v_this, "Methods"), "Contains", (Value[]){v_name}, 1)))) {
         {
-            int32_t rt_246 = alg_root_top;
-            int32_t rh_247 = alg_hold_top;
+            int32_t rt_250 = alg_root_top;
+            int32_t rh_251 = alg_hold_top;
             Value v_found = alg_hold(alg_invoke(alg_property(v_this, "Methods"), "Get", (Value[]){v_name}, 1));
             (void)v_found;
             alg_root(&v_found, 1);
-            alg_hold_top = rh_247;
+            alg_hold_top = rh_251;
             if (alg_truthy(alg_hold(alg_greater(alg_hold(alg_property(v_found, "Length")), alg_int(0))))) {
-                Value ret_15 = alg_hold(alg_cast_class(alg_subscript_get(v_found, alg_int(0)), k_objfunction, "ObjFunction"));
+                Value ret_22 = alg_hold(alg_cast_class(alg_subscript_get(v_found, alg_int(0)), k_objfunction, "ObjFunction"));
                 alg_root_top = rt_base;
-                return ret_15;
+                return ret_22;
             }
-            alg_hold_top = rh_247;
-            alg_root_top = rt_246;
+            alg_hold_top = rh_251;
+            alg_root_top = rt_250;
         }
     }
-    alg_hold_top = rh_245;
+    alg_hold_top = rh_249;
     if (alg_truthy(alg_hold(alg_not_equal(alg_property(v_this, "Superclass"), alg_nil())))) {
         {
-            int32_t rh_248 = alg_hold_top;
-            Value ret_16 = alg_hold(alg_invoke(alg_property(v_this, "Superclass"), "FindMethod", (Value[]){v_name}, 1));
+            int32_t rh_252 = alg_hold_top;
+            Value ret_23 = alg_hold(alg_invoke(alg_property(v_this, "Superclass"), "FindMethod", (Value[]){v_name}, 1));
             alg_root_top = rt_base;
-            return ret_16;
-            alg_hold_top = rh_248;
+            return ret_23;
+            alg_hold_top = rh_252;
         }
     }
-    alg_hold_top = rh_245;
-    Value ret_17 = alg_nil();
+    alg_hold_top = rh_249;
+    Value ret_24 = alg_nil();
     alg_root_top = rt_base;
-    return ret_17;
+    return ret_24;
 }
 
 static Value m_objclass_findoverload_2_string_list(Value v_this, Value *args, int32_t count) {
@@ -261,42 +346,42 @@ static Value m_objclass_findoverload_2_string_list(Value v_this, Value *args, in
     Value v_arguments = alg_widen(args[1], "List");
     (void)v_arguments;
     alg_root(&v_arguments, 1);
-    int32_t rh_249 = alg_hold_top;
+    int32_t rh_253 = alg_hold_top;
     {
-        int32_t rt_250 = alg_root_top;
-        int32_t rh_251 = alg_hold_top;
+        int32_t rt_254 = alg_root_top;
+        int32_t rh_255 = alg_hold_top;
         Value v_pass = (alg_declared(d_exact, "EXACT"), v_exact);
         (void)v_pass;
         alg_root(&v_pass, 1);
-        alg_hold_top = rh_251;
+        alg_hold_top = rh_255;
         {
-            int32_t rh_252 = alg_hold_top;
-            for (; (alg_hold_top = rh_252, alg_truthy(alg_hold(alg_less_equal(v_pass, (alg_declared(d_absorbing, "ABSORBING"), v_absorbing))))); (alg_hold_top = rh_252, (v_pass = alg_hold(alg_add(v_pass, alg_int(1)))))) {
+            int32_t rh_256 = alg_hold_top;
+            for (; (alg_hold_top = rh_256, alg_truthy(alg_hold(alg_less_equal(v_pass, (alg_declared(d_absorbing, "ABSORBING"), v_absorbing))))); (alg_hold_top = rh_256, (v_pass = alg_hold(alg_add(v_pass, alg_int(1)))))) {
                 alg_safe_point();
                 {
-                    int32_t rt_253 = alg_root_top;
-                    int32_t rh_254 = alg_hold_top;
+                    int32_t rt_257 = alg_root_top;
+                    int32_t rh_258 = alg_hold_top;
                     Value v_found = alg_hold(alg_invoke(v_this, "Fitting", (Value[]){v_name, v_arguments, v_pass}, 3));
                     (void)v_found;
                     alg_root(&v_found, 1);
-                    alg_hold_top = rh_254;
+                    alg_hold_top = rh_258;
                     if (alg_truthy(alg_hold(alg_not_equal(v_found, alg_nil())))) {
-                        Value ret_18 = v_found;
+                        Value ret_25 = v_found;
                         alg_root_top = rt_base;
-                        return ret_18;
+                        return ret_25;
                     }
-                    alg_hold_top = rh_254;
-                    alg_root_top = rt_253;
+                    alg_hold_top = rh_258;
+                    alg_root_top = rt_257;
                 }
             }
         }
-        alg_hold_top = rh_251;
-        alg_root_top = rt_250;
+        alg_hold_top = rh_255;
+        alg_root_top = rt_254;
     }
-    alg_hold_top = rh_249;
-    Value ret_19 = alg_nil();
+    alg_hold_top = rh_253;
+    Value ret_26 = alg_nil();
     alg_root_top = rt_base;
-    return ret_19;
+    return ret_26;
 }
 
 static Value m_objclass_fitting_3_string_list_integer(Value v_this, Value *args, int32_t count) {
@@ -313,49 +398,49 @@ static Value m_objclass_fitting_3_string_list_integer(Value v_this, Value *args,
     Value v_pass = alg_widen(args[2], "Integer");
     (void)v_pass;
     alg_root(&v_pass, 1);
-    int32_t rh_255 = alg_hold_top;
+    int32_t rh_259 = alg_hold_top;
     if (alg_truthy(alg_hold(alg_invoke(alg_property(v_this, "Methods"), "Contains", (Value[]){v_name}, 1)))) {
         {
-            int32_t rt_256 = alg_root_top;
-            int32_t rh_257 = alg_hold_top;
+            int32_t rt_260 = alg_root_top;
+            int32_t rh_261 = alg_hold_top;
             Value v_candidates = alg_hold(alg_invoke(alg_property(v_this, "Methods"), "Get", (Value[]){v_name}, 1));
             (void)v_candidates;
             alg_root(&v_candidates, 1);
-            alg_hold_top = rh_257;
+            alg_hold_top = rh_261;
             {
-                int32_t rt_258 = alg_root_top;
-                Value loop_20 = alg_iterable(v_candidates);
-                (void)loop_20;
-                alg_root(&loop_20, 1);
-                for (int32_t at_20 = 0; at_20 < alg_iterable_count(loop_20); at_20++) {
+                int32_t rt_262 = alg_root_top;
+                Value loop_27 = alg_iterable(v_candidates);
+                (void)loop_27;
+                alg_root(&loop_27, 1);
+                for (int32_t at_27 = 0; at_27 < alg_iterable_count(loop_27); at_27++) {
                     alg_safe_point();
-                    int32_t rt_259 = alg_root_top;
-                    Value v_candidate = alg_iterable_at(loop_20, at_20);
+                    int32_t rt_263 = alg_root_top;
+                    Value v_candidate = alg_iterable_at(loop_27, at_27);
                     (void)v_candidate;
                     alg_root(&v_candidate, 1);
                     if (alg_truthy(alg_hold(alg_invoke(v_candidate, "Selects", (Value[]){v_arguments, v_pass}, 2)))) {
-                        Value ret_21 = alg_cast_class(v_candidate, k_objfunction, "ObjFunction");
+                        Value ret_28 = alg_cast_class(v_candidate, k_objfunction, "ObjFunction");
                         alg_root_top = rt_base;
-                        return ret_21;
+                        return ret_28;
                     }
-                    alg_root_top = rt_259;
+                    alg_root_top = rt_263;
                 }
-                alg_root_top = rt_258;
+                alg_root_top = rt_262;
             }
-            alg_hold_top = rh_257;
-            alg_root_top = rt_256;
+            alg_hold_top = rh_261;
+            alg_root_top = rt_260;
         }
     }
-    alg_hold_top = rh_255;
+    alg_hold_top = rh_259;
     if (alg_truthy(alg_hold(alg_not_equal(alg_property(v_this, "Superclass"), alg_nil())))) {
-        Value ret_22 = alg_hold(alg_invoke(alg_property(v_this, "Superclass"), "Fitting", (Value[]){v_name, v_arguments, v_pass}, 3));
+        Value ret_29 = alg_hold(alg_invoke(alg_property(v_this, "Superclass"), "Fitting", (Value[]){v_name, v_arguments, v_pass}, 3));
         alg_root_top = rt_base;
-        return ret_22;
+        return ret_29;
     }
-    alg_hold_top = rh_255;
-    Value ret_23 = alg_nil();
+    alg_hold_top = rh_259;
+    Value ret_30 = alg_nil();
     alg_root_top = rt_base;
-    return ret_23;
+    return ret_30;
 }
 
 static Value m_objclass_seedfields_2_objinstance(Value v_this, Value *args, int32_t count) {
@@ -369,50 +454,50 @@ static Value m_objclass_seedfields_2_objinstance(Value v_this, Value *args, int3
     Value v_theinterpreter = args[1];
     (void)v_theinterpreter;
     alg_root(&v_theinterpreter, 1);
-    int32_t rh_260 = alg_hold_top;
+    int32_t rh_264 = alg_hold_top;
     if (alg_truthy(alg_hold(alg_not_equal(alg_property(v_this, "Superclass"), alg_nil())))) {
         (void)(alg_hold(alg_invoke(alg_property(v_this, "Superclass"), "SeedFields", (Value[]){v_instance, v_theinterpreter}, 2)));
     }
-    alg_hold_top = rh_260;
+    alg_hold_top = rh_264;
     {
-        int32_t rt_261 = alg_root_top;
-        int32_t rh_262 = alg_hold_top;
+        int32_t rt_265 = alg_root_top;
+        int32_t rh_266 = alg_hold_top;
         Value v_i = alg_int(0);
         (void)v_i;
         alg_root(&v_i, 1);
-        alg_hold_top = rh_262;
+        alg_hold_top = rh_266;
         {
-            int32_t rh_263 = alg_hold_top;
-            for (; (alg_hold_top = rh_263, alg_truthy(alg_hold(alg_less(v_i, alg_hold(alg_property(alg_property(v_this, "Fields"), "Length")))))); (alg_hold_top = rh_263, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
+            int32_t rh_267 = alg_hold_top;
+            for (; (alg_hold_top = rh_267, alg_truthy(alg_hold(alg_less(v_i, alg_hold(alg_property(alg_property(v_this, "Fields"), "Length")))))); (alg_hold_top = rh_267, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
                 alg_safe_point();
                 {
-                    int32_t rt_264 = alg_root_top;
-                    int32_t rh_265 = alg_hold_top;
+                    int32_t rt_268 = alg_root_top;
+                    int32_t rh_269 = alg_hold_top;
                     Value v_field = alg_hold(alg_subscript_get(alg_property(v_this, "Fields"), v_i));
                     (void)v_field;
                     alg_root(&v_field, 1);
-                    alg_hold_top = rh_265;
+                    alg_hold_top = rh_269;
                     Value v_value = alg_nil();
                     (void)v_value;
                     alg_root(&v_value, 1);
-                    alg_hold_top = rh_265;
+                    alg_hold_top = rh_269;
                     if (alg_truthy(alg_hold(alg_not_equal(alg_hold(alg_property(v_field, "Initializer")), alg_nil())))) {
                         (void)((v_value = alg_hold(alg_invoke(v_theinterpreter, "Widen", (Value[]){alg_hold(alg_invoke(v_theinterpreter, "Evaluate", (Value[]){alg_hold(alg_property(v_field, "Initializer"))}, 1)), alg_hold(alg_str(alg_hold(alg_property(v_field, "TypeName"))))}, 2))));
                     }
-                    alg_hold_top = rh_265;
+                    alg_hold_top = rh_269;
                     (void)(alg_hold(alg_invoke(alg_hold(alg_property(v_instance, "Fields")), "Put", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(alg_hold(alg_property(v_field, "Name")), "Lexeme"))}, 1)), v_value}, 2)));
-                    alg_hold_top = rh_265;
-                    alg_root_top = rt_264;
+                    alg_hold_top = rh_269;
+                    alg_root_top = rt_268;
                 }
             }
         }
-        alg_hold_top = rh_262;
-        alg_root_top = rt_261;
+        alg_hold_top = rh_266;
+        alg_root_top = rt_265;
     }
-    alg_hold_top = rh_260;
-    Value ret_24 = alg_nil();
+    alg_hold_top = rh_264;
+    Value ret_31 = alg_nil();
     alg_root_top = rt_base;
-    return ret_24;
+    return ret_31;
 }
 
 static Value m_objclass_fieldsinto_1_map(Value v_this, Value *args, int32_t count) {
@@ -423,42 +508,42 @@ static Value m_objclass_fieldsinto_1_map(Value v_this, Value *args, int32_t coun
     Value v_into = alg_widen(args[0], "Map");
     (void)v_into;
     alg_root(&v_into, 1);
-    int32_t rh_266 = alg_hold_top;
+    int32_t rh_270 = alg_hold_top;
     if (alg_truthy(alg_hold(alg_not_equal(alg_property(v_this, "Superclass"), alg_nil())))) {
         (void)(alg_hold(alg_invoke(alg_property(v_this, "Superclass"), "FieldsInto", (Value[]){v_into}, 1)));
     }
-    alg_hold_top = rh_266;
+    alg_hold_top = rh_270;
     {
-        int32_t rt_267 = alg_root_top;
-        int32_t rh_268 = alg_hold_top;
+        int32_t rt_271 = alg_root_top;
+        int32_t rh_272 = alg_hold_top;
         Value v_i = alg_int(0);
         (void)v_i;
         alg_root(&v_i, 1);
-        alg_hold_top = rh_268;
+        alg_hold_top = rh_272;
         {
-            int32_t rh_269 = alg_hold_top;
-            for (; (alg_hold_top = rh_269, alg_truthy(alg_hold(alg_less(v_i, alg_hold(alg_property(alg_property(v_this, "Fields"), "Length")))))); (alg_hold_top = rh_269, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
+            int32_t rh_273 = alg_hold_top;
+            for (; (alg_hold_top = rh_273, alg_truthy(alg_hold(alg_less(v_i, alg_hold(alg_property(alg_property(v_this, "Fields"), "Length")))))); (alg_hold_top = rh_273, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
                 alg_safe_point();
                 {
-                    int32_t rt_270 = alg_root_top;
-                    int32_t rh_271 = alg_hold_top;
+                    int32_t rt_274 = alg_root_top;
+                    int32_t rh_275 = alg_hold_top;
                     Value v_field = alg_hold(alg_subscript_get(alg_property(v_this, "Fields"), v_i));
                     (void)v_field;
                     alg_root(&v_field, 1);
-                    alg_hold_top = rh_271;
+                    alg_hold_top = rh_275;
                     (void)(alg_hold(alg_invoke(v_into, "Put", (Value[]){alg_hold(alg_str(alg_hold(alg_property(alg_hold(alg_property(v_field, "Name")), "Lexeme")))), alg_hold(f_canonicaltype(NULL, (Value[]){alg_hold(alg_str(alg_hold(alg_property(v_field, "TypeName"))))}, 1))}, 2)));
-                    alg_hold_top = rh_271;
-                    alg_root_top = rt_270;
+                    alg_hold_top = rh_275;
+                    alg_root_top = rt_274;
                 }
             }
         }
-        alg_hold_top = rh_268;
-        alg_root_top = rt_267;
+        alg_hold_top = rh_272;
+        alg_root_top = rt_271;
     }
-    alg_hold_top = rh_266;
-    Value ret_25 = alg_nil();
+    alg_hold_top = rh_270;
+    Value ret_32 = alg_nil();
     alg_root_top = rt_base;
-    return ret_25;
+    return ret_32;
 }
 
 static Value m_objclass_arity_0(Value v_this, Value *args, int32_t count) {
@@ -466,26 +551,26 @@ static Value m_objclass_arity_0(Value v_this, Value *args, int32_t count) {
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
-    int32_t rh_272 = alg_hold_top;
+    int32_t rh_276 = alg_hold_top;
     Value v_initializer = alg_nil();
     (void)v_initializer;
     alg_root(&v_initializer, 1);
-    alg_hold_top = rh_272;
+    alg_hold_top = rh_276;
     (void)((v_initializer = alg_hold(alg_invoke(v_this, "FindMethod", (Value[]){alg_literal("init")}, 1))));
-    alg_hold_top = rh_272;
+    alg_hold_top = rh_276;
     if (alg_truthy(alg_hold(alg_equal(v_initializer, alg_nil())))) {
-        Value ret_26 = alg_int(0);
+        Value ret_33 = alg_int(0);
         alg_root_top = rt_base;
-        return ret_26;
+        return ret_33;
     }
-    alg_hold_top = rh_272;
-    Value ret_27 = alg_hold(alg_cast_kind(alg_invoke(v_initializer, "Arity", NULL, 0), ALG_KIND_INTEGER, "Integer"));
+    alg_hold_top = rh_276;
+    Value ret_34 = alg_hold(alg_cast_kind(alg_invoke(v_initializer, "Arity", NULL, 0), ALG_KIND_INTEGER, "Integer"));
     alg_root_top = rt_base;
-    return ret_27;
-    alg_hold_top = rh_272;
-    Value ret_28 = alg_nil();
+    return ret_34;
+    alg_hold_top = rh_276;
+    Value ret_35 = alg_nil();
     alg_root_top = rt_base;
-    return ret_28;
+    return ret_35;
 }
 
 static Value m_objclass_absorbs_1_list(Value v_this, Value *args, int32_t count) {
@@ -496,30 +581,30 @@ static Value m_objclass_absorbs_1_list(Value v_this, Value *args, int32_t count)
     Value v_arguments = alg_widen(args[0], "List");
     (void)v_arguments;
     alg_root(&v_arguments, 1);
-    int32_t rh_273 = alg_hold_top;
+    int32_t rh_277 = alg_hold_top;
     Value v_initializer = alg_nil();
     (void)v_initializer;
     alg_root(&v_initializer, 1);
-    alg_hold_top = rh_273;
+    alg_hold_top = rh_277;
     (void)((v_initializer = alg_hold(alg_invoke(v_this, "FindOverload", (Value[]){alg_literal("init"), v_arguments}, 2))));
-    alg_hold_top = rh_273;
+    alg_hold_top = rh_277;
     if (alg_truthy(alg_hold(alg_equal(v_initializer, alg_nil())))) {
         (void)((v_initializer = alg_hold(alg_invoke(v_this, "FindMethod", (Value[]){alg_literal("init")}, 1))));
     }
-    alg_hold_top = rh_273;
+    alg_hold_top = rh_277;
     if (alg_truthy(alg_hold(alg_equal(v_initializer, alg_nil())))) {
-        Value ret_29 = alg_bool(false);
+        Value ret_36 = alg_bool(false);
         alg_root_top = rt_base;
-        return ret_29;
+        return ret_36;
     }
-    alg_hold_top = rh_273;
-    Value ret_30 = alg_hold(alg_cast_kind(alg_invoke(v_initializer, "Absorbs", (Value[]){v_arguments}, 1), ALG_KIND_BOOLEAN, "Boolean"));
+    alg_hold_top = rh_277;
+    Value ret_37 = alg_hold(alg_cast_kind(alg_invoke(v_initializer, "Absorbs", (Value[]){v_arguments}, 1), ALG_KIND_BOOLEAN, "Boolean"));
     alg_root_top = rt_base;
-    return ret_30;
-    alg_hold_top = rh_273;
-    Value ret_31 = alg_nil();
+    return ret_37;
+    alg_hold_top = rh_277;
+    Value ret_38 = alg_nil();
     alg_root_top = rt_base;
-    return ret_31;
+    return ret_38;
 }
 
 static Value m_objclass_variadic_0(Value v_this, Value *args, int32_t count) {
@@ -527,26 +612,26 @@ static Value m_objclass_variadic_0(Value v_this, Value *args, int32_t count) {
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
-    int32_t rh_274 = alg_hold_top;
+    int32_t rh_278 = alg_hold_top;
     Value v_initializer = alg_nil();
     (void)v_initializer;
     alg_root(&v_initializer, 1);
-    alg_hold_top = rh_274;
+    alg_hold_top = rh_278;
     (void)((v_initializer = alg_hold(alg_invoke(v_this, "FindMethod", (Value[]){alg_literal("init")}, 1))));
-    alg_hold_top = rh_274;
+    alg_hold_top = rh_278;
     if (alg_truthy(alg_hold(alg_equal(v_initializer, alg_nil())))) {
-        Value ret_32 = alg_bool(false);
+        Value ret_39 = alg_bool(false);
         alg_root_top = rt_base;
-        return ret_32;
+        return ret_39;
     }
-    alg_hold_top = rh_274;
-    Value ret_33 = alg_hold(alg_cast_kind(alg_invoke(v_initializer, "Variadic", NULL, 0), ALG_KIND_BOOLEAN, "Boolean"));
+    alg_hold_top = rh_278;
+    Value ret_40 = alg_hold(alg_cast_kind(alg_invoke(v_initializer, "Variadic", NULL, 0), ALG_KIND_BOOLEAN, "Boolean"));
     alg_root_top = rt_base;
-    return ret_33;
-    alg_hold_top = rh_274;
-    Value ret_34 = alg_nil();
+    return ret_40;
+    alg_hold_top = rh_278;
+    Value ret_41 = alg_nil();
     alg_root_top = rt_base;
-    return ret_34;
+    return ret_41;
 }
 
 static Value m_objclass_tostring_0(Value v_this, Value *args, int32_t count) {
@@ -554,14 +639,14 @@ static Value m_objclass_tostring_0(Value v_this, Value *args, int32_t count) {
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
-    int32_t rh_275 = alg_hold_top;
-    Value ret_35 = alg_property(v_this, "Name");
+    int32_t rh_279 = alg_hold_top;
+    Value ret_42 = alg_property(v_this, "Name");
     alg_root_top = rt_base;
-    return ret_35;
-    alg_hold_top = rh_275;
-    Value ret_36 = alg_nil();
+    return ret_42;
+    alg_hold_top = rh_279;
+    Value ret_43 = alg_nil();
     alg_root_top = rt_base;
-    return ret_36;
+    return ret_43;
 }
 
 static Value m_objclass_call_2(Value v_this, Value *args, int32_t count) {
@@ -575,63 +660,72 @@ static Value m_objclass_call_2(Value v_this, Value *args, int32_t count) {
     Value v_arguments = args[1];
     (void)v_arguments;
     alg_root(&v_arguments, 1);
-    int32_t rh_276 = alg_hold_top;
+    int32_t rh_280 = alg_hold_top;
     Value v_instance = alg_nil();
     (void)v_instance;
     alg_root(&v_instance, 1);
-    alg_hold_top = rh_276;
+    alg_hold_top = rh_280;
     Value v_initializer = alg_nil();
     (void)v_initializer;
     alg_root(&v_initializer, 1);
-    alg_hold_top = rh_276;
+    alg_hold_top = rh_280;
     if (alg_truthy(alg_property(v_this, "IsType"))) {
         alg_raise(alg_hold(alg_add(alg_hold(alg_str(alg_property(v_this, "Name"))), alg_literal(" is a type rather than a class, and cannot be constructed."))));
     }
-    alg_hold_top = rh_276;
+    alg_hold_top = rh_280;
     (void)((v_instance = alg_hold(alg_new(k_objinstance, (Value[]){v_this}, 1))));
-    alg_hold_top = rh_276;
+    alg_hold_top = rh_280;
     (void)(alg_hold(alg_invoke(v_this, "SeedFields", (Value[]){v_instance, v_theinterpreter}, 2)));
-    alg_hold_top = rh_276;
+    alg_hold_top = rh_280;
     (void)((v_initializer = alg_hold(alg_invoke(v_this, "FindOverload", (Value[]){alg_literal("init"), v_arguments}, 2))));
-    alg_hold_top = rh_276;
+    alg_hold_top = rh_280;
     if (alg_truthy(alg_hold(alg_equal(v_initializer, alg_nil())))) {
         {
-            int32_t rh_277 = alg_hold_top;
+            int32_t rh_281 = alg_hold_top;
             (void)((v_initializer = alg_hold(alg_invoke(v_this, "FindMethod", (Value[]){alg_literal("init")}, 1))));
-            alg_hold_top = rh_277;
+            alg_hold_top = rh_281;
             if (alg_truthy(alg_hold(alg_not_equal(v_initializer, alg_nil())))) {
                 if (alg_truthy(alg_hold((or_0 = alg_hold(alg_invoke(v_initializer, "Variadic", NULL, 0)), alg_truthy(or_0) ? or_0 : alg_hold(alg_equal(alg_hold(alg_property(v_arguments, "Length")), alg_hold(alg_invoke(v_initializer, "Arity", NULL, 0)))))))) {
                     alg_raise(alg_literal("No matching signature for function."));
                 }
             }
-            alg_hold_top = rh_277;
+            alg_hold_top = rh_281;
         }
     }
-    alg_hold_top = rh_276;
+    alg_hold_top = rh_280;
     if (alg_truthy(alg_hold(alg_not_equal(v_initializer, alg_nil())))) {
         {
-            int32_t rh_278 = alg_hold_top;
+            int32_t rh_282 = alg_hold_top;
             (void)(alg_hold(alg_invoke(alg_hold(alg_invoke(v_initializer, "Bind", (Value[]){v_instance}, 1)), "Call", (Value[]){v_theinterpreter, v_arguments}, 2)));
-            alg_hold_top = rh_278;
+            alg_hold_top = rh_282;
         }
     }
-    alg_hold_top = rh_276;
-    Value ret_37 = v_instance;
+    alg_hold_top = rh_280;
+    Value ret_44 = v_instance;
     alg_root_top = rt_base;
-    return ret_37;
-    alg_hold_top = rh_276;
-    Value ret_38 = alg_nil();
+    return ret_44;
+    alg_hold_top = rh_280;
+    Value ret_45 = alg_nil();
     alg_root_top = rt_base;
-    return ret_38;
+    return ret_45;
 }
 
 static Value *roots_ObjClass[] = {
+    &k_classmethod,
     &k_objclass,
 };
 
 void init_ObjClass(void) {
-    alg_roots(roots_ObjClass, 1);
+    alg_roots(roots_ObjClass, 2);
+    k_classmethod = alg_class("ClassMethod", alg_nil());
     k_objclass = alg_class("ObjClass", alg_nil());
+    alg_class_field(k_classmethod, "Receiver", "ObjClass");
+    alg_class_field(k_classmethod, "Name", "Token");
+    alg_class_initializer(k_classmethod, i_classmethod);
+    alg_class_method(k_classmethod, "Init", m_classmethod_init_2_objclass_token, 2, t_classmethod_init_2_objclass_token);
+    alg_class_method(k_classmethod, "Arity", m_classmethod_arity_0, 0, NULL);
+    alg_class_method(k_classmethod, "Call", m_classmethod_call_2, 2, t_classmethod_call_2);
+    alg_class_method(k_classmethod, "ToString", m_classmethod_tostring_0, 0, NULL);
     alg_class_field(k_objclass, "Name", "String");
     alg_class_field(k_objclass, "Methods", "Map");
     alg_class_field(k_objclass, "Superclass", "ObjClass");
@@ -656,6 +750,7 @@ void init_ObjClass(void) {
     alg_hold_top = rh_232;
     alg_hold_top = rh_232;
     init_ObjInstance();
+    alg_hold_top = rh_232;
     alg_hold_top = rh_232;
     alg_hold_top = rh_232;
 }

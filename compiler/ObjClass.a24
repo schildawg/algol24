@@ -6,6 +6,58 @@ uses Token;
 uses ObjFunction;
 uses ObjInstance;
 
+/// A member of a class VALUE, bound to the class, for the one that is called.
+///
+/// The class surface is otherwise properties -- `T.Name`, `T.Fields` -- which
+/// answer where they are read.  `Accepts` takes an argument, so it has to be
+/// read as something callable and then called, exactly as a collection's
+/// member is: CollectionMethod in ObjCollection.a24 is the shape this copies.
+class ClassMethod;
+var
+    /// The class the member is bound to.
+    Receiver : ObjClass;
+
+    /// The member name, as a TOKEN rather than the folded string.
+    ///
+    /// Dispatch wants the fold and a diagnostic wants the spelling the program
+    /// wrote [SRC-011]; keeping the token keeps both without a second table.
+    Name     : Token;
+
+begin
+    /// Makes a member bound to a class.
+    constructor Init (Receiver : ObjClass, Name : Token);
+    begin
+        this.Receiver := Receiver;
+        this.Name     := Name;
+    end
+
+    /// How many arguments the member takes.
+    function Arity () : Integer;
+    begin
+        Exit 1;
+    end
+
+    /// Answers whether the argument satisfies the class this is bound to.
+    ///
+    /// Asked of the interpreter rather than answered here, so that the dynamic
+    /// test and the written `is` are one decision: a subclass instance, a
+    /// built-in type's name and a nil all answer whatever [TYP-001] and
+    /// [VAL-005] already make them answer.
+    ///
+    /// # Satisfies
+    /// [RT-035]
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit TheInterpreter.SatisfiesType (Arguments[0], Receiver.Name);
+    end
+
+    /// Prints the member as a bound method is printed [TYP-012].
+    function ToString () : String;
+    begin
+        Exit '<fn ' + Str (Name.Lexeme) + '>';
+    end
+end
+
 /// A class, which is also what a program calls to construct an instance.
 class ObjClass;
 var

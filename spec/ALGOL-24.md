@@ -13025,6 +13025,14 @@ them apart. `Parent` walks.
 [CLS-017]: a describer wants both, and a record built from the field list must
 not write through one.
 
+**A class answers one METHOD besides these, `Accepts`** [RT-035], and nothing
+else: a method of the program's own needs an instance, so a class value's
+surface is the runtime's entire answer and
+`TypeOf (5).Nope (1)` is `Undefined property 'Nope'.` Every name on it is a
+member, so a member wins over an extension of the name [EXP-022] — which
+costs an extension called `Name` or `Accepts` the call on a class, and is why
+it is a member list rather than a handful of special cases.
+
     conformance  0219-typeof-answers-a-type.a24
     conformance  0220-a-class-lists-its-methods.a24
 
@@ -13376,6 +13384,77 @@ Only instances have fields.
 Integer is a type rather than a class, and cannot be constructed.
 New expects a List of arguments.
 No matching signature for function.
+```
+
+**[RT-035]**  `T.Accepts (X)` answers whether `X` satisfies the type `T`,
+where `T` is a type held as a **value** [RT-032]. It is the dynamic form of
+`is`, and it answers exactly what `X is T` answers where `T` can be written:
+an instance satisfies its own class and every class above it [STM-017], a
+`nil` satisfies nothing [VAL-005], and an Integer does not satisfy `Double` —
+widening is an assignment rule and not a test.
+
+**`is` keeps its written form and this does not replace it.** A written type
+name is resolved where the program is compiled — to a kind code or a class
+handle, which is worth about 10% where type tests are hot — and a computed
+type cannot be. So the two are one decision reached two ways rather than two
+rules: each processor answers `Accepts` through whatever already answers `is`.
+
+`T.Accepts` without a call is the member as a value [FUN-011], as any other
+member read is.
+
+    conformance  0223-a-type-tested-at-run-time.a24
+
+##### conformance/0223-a-type-tested-at-run-time.a24
+
+```algol24
+// RT-035: the dynamic form of `is`, over a type held as a value.
+class Animal;
+var
+    Name : String;
+begin
+    constructor Init (); begin Name := 'a'; end
+end
+
+class Dog (Animal);
+begin
+end
+
+var D := Dog ();
+var A := Animal ();
+
+// A declared class names itself, and an instance satisfies every class above
+// it [STM-017] -- but not one below.
+WriteLn (Str (Animal.Accepts (D)), ' ', Str (TypeOf (D).Accepts (A)));
+
+// A built-in type answers for the values of that type and no other.  An
+// Integer is not a Double: widening is an assignment rule, not a test.
+WriteLn (Str (TypeOf (5).Accepts (5)), ' ', Str (TypeOf (5).Accepts ('x')),
+         ' ', Str (TypeOf (1.5).Accepts (1)));
+
+// nil HAS NO TYPE, so it satisfies nothing [VAL-005].
+WriteLn (Str (TypeOf (5).Accepts (nil)));
+
+// The member read without a call is a value [FUN-011].
+var F := TypeOf (5).Accepts;
+WriteLn (Str (F), ' ', Str (F (7)));
+
+// A class value answers nothing else: a method of the program's own needs an
+// instance, so the surface is the runtime's entire answer [RT-032].
+try WriteLn (Str (TypeOf (5).Nope (1)));
+except on E : String do WriteLn (E); end
+
+try WriteLn (Str (TypeOf (5).Accepts ()));
+except on E : String do WriteLn (E); end
+```
+
+```console
+$ algc conformance/0223-a-type-tested-at-run-time.a24
+true false
+true false false
+false
+<fn Accepts> true
+Undefined property 'Nope'.
+Expected 1 arguments but got 0.
 ```
 
 **[RT-015]**  `Write` and `WriteLn` write their stringified values to standard
