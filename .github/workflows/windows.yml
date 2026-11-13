@@ -145,19 +145,24 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: schildawg/algol24-library
-          ref: v0.1.0
+          ref: v0.2.0
           path: library
 
       - name: Build the library's shims
         working-directory: library
         run: ./build.sh
 
-      # STAGE 5 -- the package, and its SHAPE is forced by how Windows finds a
-      # DLL.  There is no LD_LIBRARY_PATH here: LoadLibraryA searches the
-      # EXECUTABLE's own directory, so the shims go beside algvm.exe -- while
-      # the units go in algvm.exe's `lib`, because that is where the compiler
-      # looks for an installed library [MOD-002].  Two directories where macOS
-      # and Linux need one.
+      # STAGE 5 -- the package.  The shims go beside algvm.exe and the units go
+      # in algvm.exe's `lib`, because that is where the compiler looks for an
+      # installed library [MOD-002].  There is no LD_LIBRARY_PATH here:
+      # LoadLibraryA searches the EXECUTABLE's own directory.
+      #
+      # Two directories where macOS and Linux need one, and that is no longer
+      # FORCED: [FUN-017] searches a bare library name beside the binary and in
+      # `lib` beside it alike, on every platform, so the shims could move in
+      # beside the units.  Kept as it is because this is the layout the
+      # workflow has tested, and moving it is a packaging change rather than a
+      # release one.
       - name: Assemble the package
         run: |
           OUT="algol24-vm-windows-x86_64"

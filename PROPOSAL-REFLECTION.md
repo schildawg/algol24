@@ -1,6 +1,11 @@
 # Proposal: a class, readable at run time
 
-**Status:** proposed, not decided. Written 2026-11-12.
+**Status:** the LANGUAGE's half is built and shipped in v0.3.1, with v0.3.2 fixing
+three defects the library found in it. The library's half has been **started**:
+`algol24-library` 0.2.0 ships a `reflect` unit — `Describe` and `Compare`, two
+extensions over `Fields`, `TypeOf` and `Member` that work on any value — and
+`testing` has not adopted it, so the asserting half of what this proposed is
+still unwritten and this stays in the root. Written 2026-11-12.
 
 **From:** `algol24-library`'s own `PROPOSAL-REFLECTION.md`, which asked for a
 read-only field list — and from the author, who has a project in view that

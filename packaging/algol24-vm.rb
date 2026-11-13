@@ -38,14 +38,14 @@ class Algol24Vm < Formula
   end
 
   # ⚠️ PINNED, and to a VERSION rather than a branch: the bundle is a pairing
-  # of two releases, and `algol24-vm 0.2.2` carrying `algol24-library 0.1.0`
+  # of two releases, and `algol24-vm 0.4.0` carrying `algol24-library 0.2.0`
   # says which.  The library's number is its own and does not track this one --
   # it is a separate repository with its own release events and its own defect
   # record, where algc and algvm are two binaries from one tree and so share a
   # version.
   resource "library" do
-    url "https://github.com/schildawg/algol24-library/archive/refs/tags/v0.1.0.tar.gz"
-    sha256 "e0e5e2131548519a41b58b2caf9343cff89f720fb7af52e816b109965405eb5c"
+    url "https://github.com/schildawg/algol24-library/archive/refs/tags/v0.2.0.tar.gz"
+    sha256 "f5709dd5d7ab2972f3678a81fd9e961afa4fd6d37f4b310d65cf754a2d5565d3"
   end
 
   def install
@@ -63,6 +63,11 @@ class Algol24Vm < Formula
     # 'uses' against an installed library by looking beside its own binary for
     # a 'lib' directory [MOD-002] -- so this one directory is what makes
     # 'uses graph;' work from any program, with no path written in it.
+    #
+    # ⚠️ AND THE SHIMS GO IN THE SAME DIRECTORY FOR THE SAME REASON [FUN-017].
+    # A library's units and the shared objects they call into are one install,
+    # and a bare name in an 'external ... in' clause is searched there too --
+    # which is what replaced the loader-path variable this wrapper used to set.
     resource("library").stage do
       # Builds lib*ffi.so, asking sdl2-config for the flags graph and sound
       # need.  The shims are named .so on every platform, macOS included,
@@ -75,25 +80,24 @@ class Algol24Vm < Formula
       (libexec/"lib").install "REFERENCE.md"
     end
 
-    # ⚠️ A WRAPPER, and all three of these are load-bearing.
-    #
-    # The loader path: a unit declares its shim as "external ... in
-    # 'libgraphffi.so'", and dlopen is handed that name exactly as written --
-    # so a relative one resolves against the working directory, and without
-    # this the library works only when run from its own install directory.
-    # The variable's NAME is the platform's: dyld reads one and ld.so another,
-    # and setting the wrong one fails silently rather than loudly.
+    # ⚠️ A WRAPPER, and both of these are load-bearing.
     #
     # ALGOL24_LIB: 'graph' reads its glyph files itself rather than through the
     # compiler, so an installed font has to be named rather than searched for.
     #
     # And the real binary is exec'd from libexec so that argv[0] stays there,
-    # which is what lets the compiler find libexec/lib beside it.
-    loader = OS.mac? ? "DYLD_LIBRARY_PATH" : "LD_LIBRARY_PATH"
-
+    # which is what lets the machine find libexec/lib beside it.
+    #
+    # ⚠️ THE LOADER PATH IS GONE, and that is [FUN-017] rather than a tidy-up.
+    # A unit declares its shim as "external ... in 'libgraphffi.so'", and a
+    # bare name used to go straight to dlopen -- so it resolved against the
+    # working directory, and the library worked only when run from its own
+    # install directory.  Setting DYLD_LIBRARY_PATH or LD_LIBRARY_PATH here
+    # was a workaround in PACKAGING for a gap in the LANGUAGE; a processor now
+    # searches 'lib' beside its own binary, which is exactly the directory
+    # above.  The `uses graph;` test below is what holds it.
     (bin/"algvm").write <<~SHELL
       #!/bin/sh
-      #{loader}="#{libexec}/lib${#{loader}:+:$#{loader}}" \\
       ALGOL24_LIB="#{libexec}/lib" \\
       exec "#{libexec}/algvm" "$@"
     SHELL

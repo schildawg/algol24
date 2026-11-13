@@ -24,7 +24,7 @@
    three to each other instead, so bumping the release bumps this too or the
    gate goes red -- which is the whole point, since a version in two places
    with nothing comparing them is what Release.a24 was created to end. */
-#define ALG_RUNTIME_VERSION 302
+#define ALG_RUNTIME_VERSION 400
 
 /* glibc hides POSIX behind a feature test, and -std=c11 asks for it to: the
    flag defines __STRICT_ANSI__, which suppresses the _DEFAULT_SOURCE glibc
@@ -454,11 +454,13 @@ Value alg_file_exists(Value name);
 
 /* Directories.  MkDir makes one, RmDir removes an empty one, ChDir moves the
    process, and GetDir answers where it is -- taking nothing, because the drive
-   Turbo Pascal selects does not exist here. */
+   Turbo Pascal selects does not exist here.  Entries reads one, answering the
+   names in it as a List, with '.' and '..' left out. */
 Value alg_mkdir(Value name);
 Value alg_rmdir(Value name);
 Value alg_chdir(Value name);
 Value alg_getdir(void);
+Value alg_entries(Value name);
 
 void alg_arity(int32_t got, int32_t expected);
 

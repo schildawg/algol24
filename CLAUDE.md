@@ -16,7 +16,7 @@ an old thing, when the old-looking surface is the deliberate part and the
 capability behind it is the point. Pascal may be named as the *syntax's*
 lineage, never as the language's identity.
 
-**v0.3.0.** The language is **stable, not closed**: it changes only on measured
+**v0.4.0.** The language is **stable, not closed**: it changes only on measured
 demand from a project using it, and the measurement goes in the proposal. That
 is the whole policy, and it replaces the sentence this file used to carry about
 the language being done — which had to be rewritten at every release that
@@ -35,6 +35,14 @@ v0.2.1 adds the one thing a library needs to BE one: [MOD-002]'s third place,
 so `uses graph;` reaches a library a package manager installed rather than only
 one beside the program. Found by trying to write the formula that installs it.
 
+⚠️ **THAT WAS HALF AN ANSWER UNTIL [FUN-017], and the other half was worked
+around in packaging for four releases.** A unit that calls into C is most of
+the library, and a bare name in an `in` clause went straight to `dlopen` — so
+`uses graph;` resolved and the first foreign call failed, and the formula
+papered over it by wrapping the binary in a script that set
+`DYLD_LIBRARY_PATH`. A shim is now searched where its unit is, and the wrapper
+no longer sets a loader path at all.
+
 ⚠️ **[MOD-002] is about the LOOKUP only, and [MOD-018] owns the rest.** A unit
 name folds like any other identifier where the language decides anything with
 it: two units whose names differ only in case are one name declared twice, and
@@ -45,9 +53,16 @@ the program is refused on every platform alike. Only whether `uses alpha;`
 is the opposite of the natural guess. Writing `unit.a24` beside `Unit.a24` on
 APFS overwrites it — one file. So a two-unit case clash cannot even be written
 in one directory here, which is why `conformance/modules/casea` and `caseb`
-exist. Folding the *lookup* too would need a directory listing the core has not
-got — see `PROPOSAL-DIRECTORY-LISTING.md`, and note the library's own
-`Directory` is behind three `external`s the seed cannot reach.
+exist.
+
+⚠️ **Folding the LOOKUP is now POSSIBLE and is still not done, which makes it a
+decision rather than a limit.** It needed a directory listing the core did not
+have; `Entries` is [RT-026]'s fifth built-in and the loader could fold every
+stem it finds. It does not, because changing which file a program finds changes
+what existing programs mean, and nobody has yet reported a `uses` that resolves
+on one platform and fails on another — which is the measurement the policy
+asks for. [MOD-018]'s own text says so now, and
+`finished/PROPOSAL-DIRECTORY-LISTING.md` is the record.
 
 What the language still does not have is a library written in Algol-24, which is
 the whole of what *alpha* means here; nothing in the language is provisional.
@@ -430,6 +445,33 @@ arity warning would have diverged every case with a wrong-count call in it,
   ⚠️ **`'libm'` cannot be opened on macOS**, because libm is part of
   libSystem rather than a dylib of its own. 0174 expects that failure, so the
   case passes; a program wanting `pow` needs no library name at all.
+
+  ⚠️ **A BARE LIBRARY NAME IS SEARCHED AND A PATH IS NOT** [FUN-017]. Beside
+  the running binary, then `lib` beside it, then `bin/../share/algol24/lib` —
+  the same places a unit is looked for [MOD-002], because a library's units
+  and its shims are one install — and only then the operating system's own
+  resolution. A name holding a separator is that exact file, so
+  `in '/opt/homebrew/lib/libSDL2.dylib'` means what it always meant, and its
+  failure names no place because none was tried.
+
+  ⚠️ **THE DIAGNOSTIC NAMES SHAPES AND NOT PATHS, and that is forced rather
+  than terse.** The places come from the running binary's own location, so
+  `vm/conform.sh` — which compares 0174 between an `--ffi` algc it builds in a
+  work directory and the checked-in `algvm` — would read two different
+  messages as a divergence where the two agree perfectly.
+
+  ⚠️ **THE CORPUS CANNOT HOLD ANY OF IT**, because every conformance run is a
+  build without libffi [INI-008], where no library is opened at all.
+  `./installed.sh` is where the two checks live, and both were seen red: with
+  the search skipped, `uses Probe;` resolves and the first foreign call fails,
+  which is the half-measure the proposal predicted.
+
+  ⚠️ **NO `ALGOL24_PATH`, and the reason is the language rather than taste.**
+  There is no `GetEnv` built-in, so a variable the runtime honored for shared
+  objects would be unreachable from the module loader in
+  `compiler/Parser.a24` — one spelling meaning two different things for the
+  two kinds of file. `finished/PROPOSAL-LIBRARY-PATH.md` offered it and its
+  header records the refusal.
 
   ⚠️ **A bare name inside a method is a VARIABLE first and a member of `this`
   second — except that a BUILT-IN comes last.** The full order is **[CLS-019]**,
@@ -2960,6 +3002,27 @@ it.** The generation that introduces one has to be written without it — the
 bitwise operators were implemented in `div`/`mod` arithmetic first and rewritten
 to use themselves after the reseed. Expect two commits, and expect
 `fixedpoint.sh` to need more than one generation.
+
+⚠️ **A NEW BUILT-IN IS THE SAME SHAPE, and it needs no second commit.** The
+interpreter's arm *calls* the built-in, so the checked-in seed has to know the
+name before it can emit a call to it: generation 1 raises
+`[WARN] compiler/Interpreter.a24:NNN: Undefined variable 'Entries'.` and emits
+`alg_error("Undefined variable 'Entries'.")` into `Interpreter.c`, and
+generation 2 is the first that works. That intermediate compiler **compiles
+correctly and cannot interpret the new built-in**, which is survivable because
+nothing in `compiler/*.a24` interprets one — so reseeding twice in one commit
+is enough, and `fixedpoint.sh` is what confirms it.
+
+⚠️ **A BUILT-IN THAT ANSWERS A COLLECTION MUST BE WRAPPED FOR THE TREE
+WALKER.** The interpreter's collections are `ObjCollection` and never the
+host's, so `Exit Entries (...)` handed back a value that *rendered* as a List
+and was one to nothing else: `E.Length` reported `Only instances have
+properties.` and `E is List` was false, while `Str (E)` printed
+`[alpha.txt, …]` perfectly. `List`, `Map`, `Set`, `Stack` and `Array` were
+already written that way and `TextFile` and `Buffer` have their own wrappers;
+the four directory built-ins answer `nil` or a String, so nothing had met it
+since. The machine and the C back end hand back a host object and were right
+from the first build — so two processors green out of three is the signature.
 
 ## Known issues
 

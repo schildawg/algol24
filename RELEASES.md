@@ -14,6 +14,147 @@ go stale.
 
 ---
 
+## v0.4.0 — a program can list a directory, and a library's shims are found where its units are
+
+Two features, both asked for by a project using the language, and both of them
+the second half of something that shipped incomplete.
+
+```algol24
+for var Name in Entries ('art') do          // names, in the filesystem's order
+    if Pos (Name, '.png') >= 0 then WriteLn (Name);
+```
+
+```algol24
+function Draw (X, Y : Integer);
+    external 'graph_draw' in 'libgraphffi.so';   // searched, not just dlopen'd
+```
+
+### `Entries` — the fifth directory built-in
+
+The language could make a directory, remove one and change into one, and could
+not read one [RT-026]. `Entries (Path)` answers a List of the names in it.
+
+| | |
+| --- | --- |
+| each element | a **name**, never a path — `alpha.txt`, not `art/alpha.txt` |
+| `.` and `..` | not answered |
+| the order | the **filesystem's**, which is neither sorted nor stable between runs |
+| failure | `Entries failed: cannot open '<path>'.`, in the voice the other four use |
+
+A missing path, a path naming a file and a directory that cannot be read are
+one answer, because to a program they are one fact: there are no names here to
+read.
+
+**Why it is a built-in and not a library unit.** Every other name in [RT-001] is
+used by the compiler or the machine itself, which is the bar, and the module
+loader is what wants this one: folding a `uses` lookup means enumerating the
+stems in a directory, and `compiler/Parser.a24` is in the seed, so it may import
+the compiler's own units and nothing else. A library unit is out of its reach by
+construction.
+
+⚠️ **It is the first built-in admitted on a caller that is not written yet**,
+and that is worth saying plainly: nothing in `compiler/*.a24` or `vm/*.a24`
+calls `Entries` today. The bar it clears is "a library version of this would be
+unreachable from the seed" rather than "the compiler calls it".
+`finished/PROPOSAL-DIRECTORY-LISTING.md` is the record, and
+`PROPOSAL-CONCURRENCY.md` states the bar as a rule and now carries the
+exception.
+
+⚠️ **THE LIBRARY HAS HAD AN `Entries` SINCE 0.1.6 AND KEEPS IT.** `file`'s
+`Entries (Path) : List` is built over its own `Directory` class, and the
+built-in's surface was matched to it deliberately — names only, no `.` or `..`,
+the filesystem's order — so that the two cannot disagree about an answer. A
+declaration forms one overload set with a built-in of the same name at the
+counts it declares [FUN-005], so a program that `uses file` still reaches the
+library's. Whether those three `external`s come out is the library's own call,
+on its own release.
+
+⚠️ **The folded `uses` lookup is now POSSIBLE and is still not done**, which
+makes it a decision rather than a limit. Changing which file a program finds
+changes what existing programs mean, and nobody has reported a `uses` that
+resolves on one platform and fails on another — which is the measurement the
+policy asks for. [MOD-018] says so in its own text.
+
+### A bare library name is searched where its unit is
+
+v0.2.1 gave a `uses` three places to look, so `uses graph;` reached a library a
+package manager had installed. That was **half an answer for four releases**: a
+unit that calls into C is most of what a library is, and a bare name in an
+`external … in` clause went straight to the operating system — so the unit
+resolved, and the first foreign call failed.
+
+[FUN-017] searches a bare name the same way, and for the same reason: a
+library's units and the shared objects they call into are one install.
+
+| | |
+| --- | --- |
+| 1 | beside the running binary |
+| 2 | `lib` beside it |
+| 3 | `bin/../share/algol24/lib` |
+| 4 | wherever the operating system itself looks |
+
+The system is asked **last**, so a vendored copy wins and a system library is
+still reachable. A name holding a separator is **that exact file and nothing is
+searched**, so `in '/opt/homebrew/lib/libSDL2.dylib'` means what it always
+meant — and its failure names no place, because none was tried.
+
+**Where it fails, it says where it looked.** The commonest cause is a library
+installed somewhere the processor does not look, and a message naming only the
+library cannot tell that from one never installed at all.
+
+⚠️ **The packaging workaround is gone, and that is the measure of it.** The
+formula for `algol24-vm` wrapped the binary in a script that set
+`DYLD_LIBRARY_PATH` or `LD_LIBRARY_PATH`, because the library's shims install
+into `libexec/lib` and a bare name could not find them. That is the directory
+the search looks in second. The wrapper sets no loader path at all now.
+
+⚠️ **THERE IS NO `ALGOL24_PATH`, and the reason is the language rather than
+taste.** The proposal offered one and it is refused: there is no `GetEnv`
+built-in, so a variable the runtime honored for shared objects would be
+unreachable from the module loader — one spelling meaning two different things
+for the two kinds of file, which is worse than no spelling at all. Honoring it
+for both means a new always-available built-in for a case `cd` answers.
+
+### The gate for it is `./installed.sh`, because no corpus case can hold it
+
+Every conformance run is a build without libffi [INI-008], where no library is
+opened at all — so the corpus cannot reach this, and the harness that builds a
+prefix is the only thing that can ask. It now installs a unit whose work is
+done in C, with its shim beside it, and runs a program from a directory holding
+neither. Both of its new checks were seen red before being trusted: with the
+search removed, `uses Probe;` resolves and the first foreign call fails, which
+is exactly the half-measure this release closes.
+
+It builds its own foreign-call compiler rather than using the checked-in one,
+and skips with a note where libffi or a shared library cannot be built — the
+bootstrap needs a C compiler and nothing else, and a gate demanding libffi
+would make that untrue.
+
+### Upgrading
+
+Nothing to change. Two things are worth knowing:
+
+- **A bare library name now resolves nearer than it used to.** If a shared
+  object of the same name sits both beside your binary and in a system
+  directory, the nearer one answers where the system's used to. Write the path
+  in the `in` clause to pin a particular file; a name with a separator in it is
+  not searched.
+- **A program declaring its own `Entries`** forms an overload set with the
+  built-in [FUN-005] rather than being refused, and answers at the counts it
+  declares.
+
+⚠️ **Both halves of the runtime move together.** `algol.c` and `algol.h` are
+hand-written and copied verbatim by `--compile`, and the body uses what the
+header declares — `Entries` is new in both. Anything assembling a build from
+both a compiler's output and a checkout must take the pair from one release.
+
+**The bundle moves too.** `algol24-vm` carries `algol24-library` 0.2.0, which
+adds `reflect` — the library's half of the reflection built-ins v0.3.1 shipped,
+as two extension functions that describe a value and compare two by content.
+The library's number is its own and does not track this one.
+
+---
+
 ## v0.3.2 — three defects the library found by using the language
 
 All three were reported by `algol24-library` against 0.3.1, and all three are

@@ -127,7 +127,7 @@ Every harness must pass. They are the definition of done.
 | `./fixedpoint.sh` | the seed matches what the compiler emits, and emits itself unchanged |
 | `./docs.sh` | every unit is documented, per `spec/DOCUMENTATION.md` |
 | `./collector.sh` | the collector keeps what a program holds, and releases what it does not |
-| `./installed.sh` | a program reaches an installed unit by name, from a directory holding none of its own files |
+| `./installed.sh` | a program reaches an installed unit by name, and the C shim that unit calls into, from a directory holding none of their files |
 | `./defects.sh` | every defect a project using the language has reported |
 
 and three more for the bytecode machine, which `./test.sh`'s default root does
@@ -154,7 +154,7 @@ reproduces it. `spec/HISTORY.md` holds how the language arrived.
 
 ## Status
 
-**v0.3.0.** The language is **stable, not closed**: it changes only on measured
+**v0.4.0.** The language is **stable, not closed**: it changes only on measured
 demand from a project using it, and the measurement goes in the proposal.
 
 v0.2.0 is a **third processor**. `algvm` is a bytecode machine that runs the
@@ -232,6 +232,38 @@ The rest, in brief:
 What comes next is still a library, written in Algol-24 rather than in the
 runtime — that is the whole of what *alpha* means here, and nothing in the
 language is provisional.
+
+v0.4.0 is **two features, each the second half of something that shipped
+incomplete**. A program can **list a directory**: `Entries (Path)` answers the
+names in it — names rather than paths, without `.` or `..`, in the filesystem's
+order — which is the one thing [RT-026] could not do, and the thing the module
+loader would need in order to fold a `uses` lookup. And a **bare library name
+in an `external … in` clause is now searched** where its unit was found: beside
+the binary, in `lib` beside it, in `bin/../share/algol24/lib`, and only then
+wherever the operating system looks. v0.2.1 made `uses graph;` reach an
+installed library and left the shims it calls into unreachable, so the unit
+resolved and the first foreign call failed; packaging worked around it for four
+releases by setting a loader path, and no longer does. A name holding a
+separator is still that exact file, searched nowhere.
+
+v0.3.2 is **three defects reported by the library against 0.3.1**, each a
+processor disagreeing with the other two or with the specification, and a
+fourth found by fixing them. `New` checked a constructor's argument types and
+not its count, so too many arguments were discarded and a plausible instance
+came back — the shape of fault that reports success. The C back end refused a
+variadic built-in's qualified spelling past one argument, which is the only
+console route a program has when it imports a unit that shadows `Write`. And a
+`[WARN]` went to standard output, where a non-blocking diagnostic interleaves
+with the output of the program that is still running. Nothing in the language
+changed.
+
+v0.3.1 is **reflection**, with no new syntax: a program can ask what a class
+declares, construct one by a type it was handed, read or write a field by a
+computed name, call a method by one, and ask whether a value satisfies a type.
+Nothing creates or alters a class at run time, and there is no source and no
+syntax tree — the data is distilled when the program is built. One thing in it
+changes what an existing program prints: a selection failure now names what was
+called, where `No matching signature for function.` named nothing at all.
 
 v0.3.0 is the **first release that changes what an existing program means**: a
 `Char` and a `String` holding the same text are now equal, so

@@ -1,6 +1,54 @@
 # Proposal: a directory listing in the core
 
-**Status:** proposed, not decided. Written 2026-11-07, out of
+> **FINISHED — accepted, built, and shipped in v0.4.0.**
+> `Entries (Path) : List` is [RT-026]'s fifth directory built-in, and
+> `conformance/0224-a-directory-lists-itself.a24` is the case. The five open
+> questions in *The shape* below are all answered, four of them as the body
+> guessed:
+>
+> - **`.` and `..` are left out.** The body called this "not quite `readdir`"
+>   and worried at [RT-026]'s own principle; the deciding argument turned out
+>   to be that the library's `Directory` already omits them, so matching it is
+>   what lets this replace the three foreign calls without changing an answer.
+> - **The order is the filesystem's**, stated in the rule, which is why the
+>   case sorts every listing before printing it.
+> - **A failure raises in the directory family's voice** —
+>   `Entries failed: cannot open 'x'.` — because `Entries` is one of them. A
+>   missing path, a path naming a file, and a directory that cannot be read
+>   are one answer and not three.
+> - **[MOD-002]'s concession is NOT withdrawn**, as the body's last section
+>   recommended. The rule now says the folded lookup is a *decision* rather
+>   than a limit, and names the measurement still missing: nobody has reported
+>   a `uses` that resolves on one platform and fails on another.
+> - **Whether the library's three externals come out** is still the library's
+>   call and its own release.
+>
+> ⚠️ **ONE THING THE BODY DID NOT PREDICT, and it is the whole of what went
+> wrong: the tree walker's collections are `ObjCollection` and never the
+> host's.** Handing back the host List that `alg_entries` answers gave a value
+> that *rendered* as a List and was one to nothing else — `E.Length` reported
+> `Only instances have properties.` and `E is List` was false, while
+> `Str (E)` printed `[alpha.txt, …]` perfectly. No previous directory built-in
+> could meet it: the other four answer `nil` or a String. The compiled back
+> end and the machine both use host collections directly and were right from
+> the first build, so this was the interpreter alone.
+>
+> ⚠️ **It cost TWO GENERATIONS of the seed, for the reason a new operator
+> does.** The interpreter's arm *calls* `Entries`, so the checked-in seed has
+> to know the name before it can emit a call to it: generation 1 emits
+> `alg_error("Undefined variable 'Entries'.")` into `Interpreter.c` and
+> generation 2 is the first that works. `fixedpoint.sh` iterates for exactly
+> this, and the intermediate generation is a compiler that compiles correctly
+> and cannot *interpret* the new built-in.
+>
+> ⚠️ **AND THE CALLER THE ARGUMENT RESTS ON IS STILL NOT WRITTEN.** The case
+> for the core is that the module loader cannot reach a library unit, and the
+> loader does not call `Entries` — folding the `uses` lookup [MOD-018] is the
+> work that would, and it is deliberately not taken. So this is the first of
+> [RT-001]'s names with no caller inside the compiler or the machine, which
+> `PROPOSAL-CONCURRENCY.md` records as the one exception to its bar.
+
+**Status:** accepted and built, shipped in v0.4.0. Written 2026-11-07, out of
 `finished/PLAN-0.2.4.md` item 6.
 
 [RT-026] gives the core four directory built-ins — `MkDir`, `RmDir`, `ChDir`,

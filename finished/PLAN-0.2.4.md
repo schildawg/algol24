@@ -606,7 +606,7 @@ file after it like any other.
 spelling is the name of the clash and the folded spelling is one no file wrote
 [SRC-011].
 
-**`PROPOSAL-DIRECTORY-LISTING.md` carries what this does NOT do.** Folding the
+**`finished/PROPOSAL-DIRECTORY-LISTING.md` carries what this does NOT do.** Folding the
 *lookup* needs the language to enumerate a directory, and [RT-026] gives it no
 way to. `algol24-library` has one — `class Directory` and `Entries`, Turbo
 Pascal's `FindFirst`/`FindNext` as an object — but behind **three `external`

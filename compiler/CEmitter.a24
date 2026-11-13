@@ -4204,6 +4204,7 @@ begin
         if Key = 'rmdir/1'      then Exit 'alg_rmdir';
         if Key = 'chdir/1'      then Exit 'alg_chdir';
         if Key = 'getdir/0'     then Exit 'alg_getdir';
+        if Key = 'entries/1'    then Exit 'alg_entries';
         if Key = 'paramcount/0' then Exit 'alg_param_count';
         if Key = 'paramstr/1'   then Exit 'alg_param_str';
 
