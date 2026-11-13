@@ -822,9 +822,25 @@ static Value m_objclass_call_2(Value v_this, Value *args, int32_t count) {
             int32_t rh_288 = alg_hold_top;
             (void)((v_initializer = alg_hold(alg_invoke(v_this, "FindMethod", (Value[]){alg_literal("init")}, 1))));
             alg_hold_top = rh_288;
-            if (alg_truthy(alg_hold(alg_not_equal(v_initializer, alg_nil())))) {
-                if (alg_truthy(alg_hold((or_4 = alg_hold(alg_invoke(v_initializer, "Variadic", NULL, 0)), alg_truthy(or_4) ? or_4 : alg_hold(alg_equal(alg_hold(alg_property(v_arguments, "Length")), alg_hold(alg_invoke(v_initializer, "Arity", NULL, 0)))))))) {
-                    alg_raise(alg_hold(alg_add(alg_hold(alg_add(alg_literal("No matching signature for "), alg_property(v_this, "Name"))), alg_char_value(46))));
+            if (alg_truthy(alg_hold(alg_equal(v_initializer, alg_nil())))) {
+                {
+                    int32_t rh_289 = alg_hold_top;
+                    if (alg_truthy(alg_hold(alg_not_equal(alg_hold(alg_property(v_arguments, "Length")), alg_int(0))))) {
+                        alg_raise(alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expected 0 arguments but got "), alg_hold(alg_str(alg_hold(alg_property(v_arguments, "Length")))))), alg_char_value(46))));
+                    }
+                    alg_hold_top = rh_289;
+                }
+            } else {
+                {
+                    int32_t rh_290 = alg_hold_top;
+                    if (alg_truthy(alg_hold((or_4 = alg_hold(alg_invoke(v_initializer, "Variadic", NULL, 0)), alg_truthy(or_4) ? or_4 : alg_hold(alg_equal(alg_hold(alg_property(v_arguments, "Length")), alg_hold(alg_invoke(v_initializer, "Arity", NULL, 0)))))))) {
+                        alg_raise(alg_hold(alg_add(alg_hold(alg_add(alg_literal("No matching signature for "), alg_property(v_this, "Name"))), alg_char_value(46))));
+                    }
+                    alg_hold_top = rh_290;
+                    if (alg_truthy(alg_hold(alg_not(alg_hold(alg_invoke(v_this, "Absorbs", (Value[]){v_arguments}, 1)))))) {
+                        alg_raise(alg_hold(f_nomatch(NULL, (Value[]){alg_literal(""), alg_property(v_this, "Name"), alg_hold(alg_invoke(v_this, "CandidatesOf", (Value[]){alg_literal("init")}, 1)), alg_hold(alg_property(v_arguments, "Length"))}, 4)));
+                    }
+                    alg_hold_top = rh_290;
                 }
             }
             alg_hold_top = rh_288;
@@ -833,9 +849,9 @@ static Value m_objclass_call_2(Value v_this, Value *args, int32_t count) {
     alg_hold_top = rh_287;
     if (alg_truthy(alg_hold(alg_not_equal(v_initializer, alg_nil())))) {
         {
-            int32_t rh_289 = alg_hold_top;
+            int32_t rh_291 = alg_hold_top;
             (void)(alg_hold(alg_invoke(alg_hold(alg_invoke(v_initializer, "Bind", (Value[]){v_instance}, 1)), "Call", (Value[]){v_theinterpreter, v_arguments}, 2)));
-            alg_hold_top = rh_289;
+            alg_hold_top = rh_291;
         }
     }
     alg_hold_top = rh_287;

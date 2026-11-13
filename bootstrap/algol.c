@@ -3,7 +3,7 @@
 /* The header this body was written against.  See ALG_RUNTIME_VERSION there for
    why a mismatched pair is worth one line of diagnostic rather than twenty of
    symptom. */
-_Static_assert (ALG_RUNTIME_VERSION == 301,
+_Static_assert (ALG_RUNTIME_VERSION == 302,
                 "algol.c and algol.h are from different releases");
 
 #include <math.h>
@@ -2781,7 +2781,17 @@ Value alg_new(Value value, Value *args, int32_t count) {
         }
         else {
 
-            alg_arity(count, init->arity);
+            /* THE COUNT, where the name is UNAMBIGUOUS.  Several constructors
+               make it ambiguous and name the class instead [EXP-014] -- this
+               was a bare alg_arity, which reported
+               `Expected 1 arguments but got 3.` for a class with two
+               constructors of arity 1, naming one candidate's arity as though
+               it were the only one.  The machine answered the class, and both
+               spellings of the construction answer alike now. */
+            if (count != init->arity)
+                no_match(NULL, klass->name, candidate_count(klass, "Init"),
+                         init->arity, count);
+
             init->fn(self, args, count);
         }
     }

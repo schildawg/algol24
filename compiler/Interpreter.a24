@@ -1781,7 +1781,16 @@ begin
         if Callee is ObjFunction or Callee is ObjClass then
             Absorbing := Callee.Variadic ();
 
-        if not Gathering and not Absorbing
+        // ⚠️ A CLASS IS NOT COUNTED HERE, because ObjClass.Call counts it --
+        // and has to, since `New (T, Args)` [RT-034] never reaches this
+        // function at all.  Two checks for one question disagreed about an
+        // OVERLOADED constructor: `Callee.Arity()` is one particular Init's
+        // arity, so `Pair (1, 2, 3)` where two constructors each take one
+        // argument reported `Expected 1 arguments but got 3.` as though that
+        // arity were the only one, where the count is in fact ambiguous and
+        // the class is what to name [EXP-014].  ObjClass.Call asks how many
+        // candidates there are; this could not.
+        if not Gathering and not Absorbing and not (Callee is ObjClass)
                and Callee.Arity() >= 0 and Arguments.Length <> Callee.Arity() then
         begin
             raise 'Expected ' + Callee.Arity() + ' arguments but got ' + Arguments.Length + '.';

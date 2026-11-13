@@ -160,7 +160,7 @@ static Value m_console_warn_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_text;
     alg_root(&v_text, 1);
     int32_t rh_193 = alg_hold_top;
-    (void)(alg_writeln(alg_hold(alg_add((alg_declared(d_warnVtag, "WARN_TAG"), v_warnVtag), v_text))));
+    (void)(alg_stderr_line(alg_hold(alg_add((alg_declared(d_warnVtag, "WARN_TAG"), v_warnVtag), v_text))));
     alg_hold_top = rh_193;
     Value ret_5 = alg_nil();
     alg_root_top = rt_base;

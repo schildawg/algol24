@@ -4210,6 +4210,50 @@ begin
         Exit '';
     end
 
+    /// Emits a call to one of the three built-ins that join any number of
+    /// values -- Write, WriteLn and ErrorLn [RT-001].
+    ///
+    /// Answers '' for every other name and for the one-argument case, so a
+    /// caller asks first and falls through to the ordinary table.
+    ///
+    /// Both spellings reach it, because the qualified one always reaches the
+    /// built-in [MOD-011] and this back end refused it past one argument --
+    /// `algol24-library`'s L-5.  That lands on a `graph` program specifically:
+    /// `graph` shadows Write and WriteLn, so `System.WriteLn` is the one
+    /// console route such a program has, and a graph program reporting more
+    /// than a single value could not be compiled at all.
+    ///
+    /// No arguments is a count like any other.  `Write ()` and `ErrorLn ()`
+    /// answered `Expected 1 arguments but got 0.` compiled where both other
+    /// processors write a blank -- the table carried `writeln/0` and neither
+    /// of the other two, which is the same omission in a second place and a
+    /// divergence the library did not reach.
+    function JoiningBuiltin (Name : String, Arguments : List) : String;
+    var
+        One : String;
+
+    begin
+        One := Builtin (Name, 1);
+
+        if One <> 'alg_writeln' and One <> 'alg_write'
+                                and One <> 'alg_stderr_line' then Exit '';
+
+        if Arguments.Length > 1 then Exit One + '(' + RunTogether (Arguments) + ')';
+
+        if Arguments.Length = 0 then
+        begin
+            // A line on its own for the one that has a blank form, and an
+            // empty string for the two that do not -- which writes nothing
+            // for Write and a bare newline for ErrorLn, exactly as the
+            // interpreter does.
+            if One = 'alg_writeln' then Exit 'alg_writeln_blank()';
+
+            Exit One + '(alg_literal(' + QuoteC ('') + '))';
+        end
+
+        Exit '';
+    end
+
     /// Joins every argument of a Write or WriteLn into one string, as the
     /// interpreter's Rendered does.
     function RunTogether (Arguments : List) : String;
@@ -4439,6 +4483,11 @@ begin
 
         if Unit = 'System' then
         begin
+            // Asked FIRST, because the table is keyed by name and count and a
+            // variadic built-in has no one count to key on.
+            var Joining := JoiningBuiltin (Name, Arguments);
+            if Joining <> '' then Exit Joining;
+
             var TheBuiltin := Builtin (Name, Arguments.Length);
             if TheBuiltin <> '' then Exit TheBuiltin + '(' + Joined + ')';
 
@@ -4560,14 +4609,10 @@ begin
             Exit '(alg_error(' + QuoteC ('A built-in has no named parameters.')
                + '), alg_nil())';
 
-        if not Shadowed and Arguments.Length > 1 then
+        if not Shadowed then
         begin
-            var One := Builtin (Name, 1);
-
-            // The three that take any count and join what they are given.
-            if One = 'alg_writeln' or One = 'alg_write'
-                                   or One = 'alg_stderr_line' then
-                Exit One + '(' + RunTogether (Arguments) + ')';
+            var Joining := JoiningBuiltin (Name, Arguments);
+            if Joining <> '' then Exit Joining;
         end
 
         if not Shadowed then

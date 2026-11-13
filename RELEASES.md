@@ -14,6 +14,124 @@ go stale.
 
 ---
 
+## v0.3.2 — three defects the library found by using the language
+
+All three were reported by `algol24-library` against 0.3.1, and all three are
+cases where a processor disagreed with the other two or with the
+specification. Nothing in the language changed.
+
+### `New` did not check its argument count
+
+[RT-034] says `New` and `SetMember` "answer exactly what the written form
+answers", and the **tree walker** did not: it checked a constructor's argument
+*types* and not its count.
+
+| `New (Needs, …)` where `constructor Init (Arg : Integer)` | before | now |
+| --- | --- | --- |
+| `[]` — too few | `Index 0 out of range 0..-1.` | `Expected 1 arguments but got 0.` |
+| `[1, 2]` — too many | **answered an instance** | `Expected 1 arguments but got 2.` |
+
+⚠️ **The second was the worse one.** Too many arguments was not refused at
+all: the extra was discarded and a plausible instance came back, which is the
+shape of fault that reports success. A deserializer calling `New (T, [])` to
+make a blank instance is exactly the shape that meets the first.
+
+**The check now lives where construction happens** rather than at the call
+site, which is why `New` had missed it — a written construction goes through
+the call path and `New` does not. Fixing it there uncovered a second
+disagreement about an **overloaded** constructor: `Pair (1, 2, 3)` where two
+constructors each take one argument reported `Expected 1 arguments but got 3.`
+in two processors, naming one candidate's arity as though it were the only one,
+where the count is in fact ambiguous and the class is what to name [EXP-014].
+All three now answer alike for every constructor shape and both spellings.
+
+### A variadic built-in refused its qualified spelling when compiled
+
+[RT-001] says `Write` and `WriteLn` "take any number of values" and [MOD-011]
+says the qualified spelling always reaches the built-in — "which is what makes
+taking a name over safe: nothing is put out of reach." The C back end put
+exactly that out of reach past one argument:
+
+```
+System.WriteLn ('a', 'b')     ->  A call to 'System.WriteLn' is not supported
+                                  by the C back end yet.
+```
+
+**It landed on one kind of program in particular.** A unit that declares its
+own `Write` and `WriteLn` makes the qualified spelling the only console route a
+program using it has — so such a program could report a single value and no
+more, and could not be compiled at all.
+
+Measuring the whole surface rather than the reported cell found the same
+omission in a second place: `Write ()` and `ErrorLn ()` with **no** arguments
+were refused in either spelling, the table carrying a no-argument form for
+`WriteLn` alone. All three built-ins now take every count through both
+spellings, which is 24 cells all answering alike.
+
+### A warning went to standard output, where it mixed with the program's output
+
+A `[WARN]` is **non-blocking**: the program compiles and runs. Writing the
+warning to standard output therefore interleaved a diagnostic with what the
+program produced, which broke anything comparing that output byte for byte —
+and after extension functions, a name that some class gains a member of in a
+later version could start narrating into the output of a program that had done
+nothing wrong.
+
+**Warnings go to the error stream now** [ERR-010], with standard output
+flushed first so a warning never appears ahead of output already written.
+
+⚠️ **An `[ERROR]` excerpt still goes to standard output, and that is the
+distinction.** A parse or type error means **no statement runs** [ERR-002], so
+there is no program output for it to mix with. A warning is the opposite case
+by construction, and the stream is what tells them apart.
+
+### And a fourth, found by fixing the first three
+
+Adding the missing constructor cases to the corpus turned up one the library
+had not reached: a **subclass declaring its own constructor also offered its
+parent's implicit one** on the bytecode machine.
+
+```algol24
+class Base;  var Tag : String;  begin end           // declares no constructor
+
+class Thing (Base);
+var Worth : Integer;
+begin
+    constructor Init (W : Integer); begin Worth := W; end
+end
+
+Thing ()        // refused by two processors; the machine CONSTRUCTED one
+```
+
+"A class with no constructor takes no arguments" is a property of a class
+*without* one, not a signature a subclass inherits [CLS-004]. The machine gave
+`Base` a synthesized no-argument constructor — which is right — and then let
+selection walk the chain and find it from `Thing`, answering an instance with
+its field unset where the other two refuse. Construction selects among a
+class's **own** constructors now; the emitter already makes that set complete,
+giving a subclass that declares none a forwarder per inherited signature.
+
+### Upgrading
+
+Nothing to change in a program. Two things to check if you read our
+diagnostics with a script:
+
+- **A warning now arrives on the error stream.** Anything grepping stdout for
+  `[WARN]` must capture stderr instead — this repository's own `spec/spec.sh`
+  needed exactly that change, and now also checks that no warning reaches
+  stdout.
+- **A wrong constructor count reports differently in two cases** that were
+  wrong before: `New` with the wrong count now reports it at all, and an
+  overloaded constructor with an ambiguous count names the class rather than
+  one candidate's arity.
+
+⚠️ **Both halves of the runtime move together.** `algol.c` and `algol.h` are
+hand-written and copied verbatim by `--compile`, and the body uses what the
+header declares. Anything assembling a build from both a compiler's output and
+a checkout must take the pair from the same release.
+
+---
+
 ## v0.3.1 — a program can read its own shapes
 
 **Reflection.** A program can ask what a class declares, construct one by a

@@ -444,22 +444,52 @@ begin
             // with nothing to catch it.
             //
             // The fallback stands only for a count no candidate takes, which
-            // reports the COUNTS rather than a selection failure [0049] --
-            // and reports them from ObjFunction.Call, where a subprogram's
-            // wrong count is reported too.
+            // reports the COUNTS rather than a selection failure [0049].
             Initializer := FindMethod('init');
 
-            //
-            // ⚠️ The split MIRRORS the one a plain call makes, rather than
-            // inventing a second rule: a wrong count on a FIXED-arity
-            // constructor reports the counts [0049], and anything else -- the
-            // right count, or any count on a VARIADIC one -- is a selection
-            // failure, because an element type replaces the arity check and is
-            // stricter than it [FUN-005, 0158].
-            if Initializer <> Nil then
+            // ⚠️ A CLASS WITH NO CONSTRUCTOR ANYWHERE TAKES NONE [CLS-004].
+            if Initializer = Nil then
+            begin
+                if Arguments.Length <> 0 then
+                    raise 'Expected 0 arguments but got '
+                        + Str (Arguments.Length) + '.';
+            end
+            else
+            begin
+                //
+                // ⚠️ The split MIRRORS the one a plain call makes, rather than
+                // inventing a second rule: a wrong count on a FIXED-arity
+                // constructor reports the counts [0049], and anything else --
+                // the right count, or any count on a VARIADIC one -- is a
+                // selection failure, because an element type replaces the
+                // arity check and is stricter than it [FUN-005, 0158].
                 if Initializer.Variadic ()
                        or Arguments.Length = Initializer.Arity () then
                     raise 'No matching signature for ' + Name + '.';
+
+                // ⚠️ THE COUNT IS CHECKED HERE, WHERE CONSTRUCTION HAPPENS,
+                // and not at the call site alone.  VisitCall checks it for a
+                // WRITTEN construction, and `New (T, Args)` [RT-034] does not
+                // go through VisitCall -- so New answered
+                // `Index 0 out of range 0..-1.` for too few arguments, which
+                // is ObjFunction.Call subscripting an empty Arguments, and
+                // silently DISCARDED the extras for too many, which is the
+                // shape of fault that reports success.  `algol24-library`
+                // reported it as L-6.
+                //
+                // The machine checks in EnterFrame for exactly this reason --
+                // every way into a frame on the same terms -- which is why it
+                // was the one processor that got this right.
+                //
+                // ⚠️ And the comment this replaces was FALSE: it said the
+                // count was reported "from ObjFunction.Call, where a
+                // subprogram's wrong count is reported too".  ObjFunction.Call
+                // checks nothing at all -- it binds Arguments[I] per declared
+                // parameter, which IS the subscript error.
+                if not Absorbs (Arguments) then
+                    raise NoMatch ('', Name, CandidatesOf ('init'),
+                                   Arguments.Length);
+            end
         end
 
         if Initializer <> Nil then
