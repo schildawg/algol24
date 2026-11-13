@@ -3887,6 +3887,7 @@ begin
         if Name = 'chdir'      then begin ChDir (A);      Push (Nil); Exit; end
         if Name = 'mkdir'      then begin MkDir (A);      Push (Nil); Exit; end
         if Name = 'rmdir'      then begin RmDir (A);      Push (Nil); Exit; end
+        if Name = 'entries'    then begin Push (Entries (A));    Exit; end
         if Name = 'write'      then begin Write (A);      Push (Nil); Exit; end
         if Name = 'writeln'    then begin WriteLn (A);    Push (Nil); Exit; end
     end
@@ -4100,6 +4101,7 @@ var BUILTIN_ARITY := ['clock' : 0, 'collect' : 0, 'length' : 1, 'copy' : 3,
                       'succ' : 1, 'pred' : 1, 'foreign' : 5, 'val' : 1,
                       'char' : 1, 'textfile' : 0, 'fileexists' : 1,
                       'mkdir' : 1, 'rmdir' : 1, 'chdir' : 1, 'getdir' : 0,
+                      'entries' : 1,
                       'paramcount' : 0, 'paramstr' : 1, 'asserttrue' : 1,
                       'assertequal' : 2, 'fail' : 1,
                       'fields' : 1, 'typeof' : 1, 'member' : 2, 'invoke' : 3,

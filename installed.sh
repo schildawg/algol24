@@ -169,6 +169,88 @@ case $MISS in
        echo "        got: $MISS" ;;
 esac
 
+# ---------------------------------------------------------- a unit's shim --
+#
+# ⚠️ A UNIT THAT CALLS INTO C NEEDS ITS SHARED OBJECT FOUND TOO [FUN-017], and
+# this is the only harness that can ask.  A module path that resolves the
+# source and then fails at the first foreign call is the half-measure
+# finished/PROPOSAL-LIBRARY-PATH.md predicted, and every other gate assumes it away by
+# running from the repository root with everything beside it.  Measured before
+# the search existed: a bare `dlopen` from the program's own directory does not
+# find a library installed in the prefix, on any of the three platforms.
+#
+# ⚠️ IT BUILDS ITS OWN --ffi algc AND NEVER USES bootstrap/algc, because one of
+# those fails 0174 and DEF-37 under the main corpus -- the trap vm/conform.sh
+# avoids the same way.
+#
+# ⚠️ SKIPPED RATHER THAN FAILED where libffi or a shared library cannot be
+# built here.  The bootstrap needs a C compiler and nothing else, so a gate
+# that demanded libffi would make that untrue -- and this script runs in the
+# windows workflow, where neither the link flags nor the suffix are the Unix
+# ones.
+case $(uname -s 2>/dev/null || echo unknown) in
+    Darwin) SHIM=libprobeffi.dylib; GONE_SHIM=libnowhereffi.dylib
+            SHIM_FLAGS="-dynamiclib" ;;
+    Linux)  SHIM=libprobeffi.so;    GONE_SHIM=libnowhereffi.so
+            SHIM_FLAGS="-shared -fPIC" ;;
+    *)      SHIM=libprobeffi.dll;   GONE_SHIM=libnowhereffi.dll
+            SHIM_FLAGS="-shared" ;;
+esac
+
+P="$WORK/shim"
+mkdir -p "$P/bin" "$P/share/algol24/lib" "$P/work"
+
+cat > "$WORK/probe.c" <<'C'
+/* The whole of the C a unit needs, so that what is under test is where the
+   shared object was found and nothing else. */
+int alg_probe_twice(int n) { return n * 2; }
+C
+
+if "${CC:-cc}" -std=c11 -O2 -DALG_FFI -o "$P/bin/algc" "$ROOT"/bootstrap/*.c -lffi \
+        > "$WORK/shim.log" 2>&1 &&
+   "${CC:-cc}" $SHIM_FLAGS -o "$P/share/algol24/lib/$SHIM" "$WORK/probe.c" \
+        >> "$WORK/shim.log" 2>&1; then
+
+    cat > "$P/share/algol24/lib/Probe.a24" <<UNIT
+/// A unit whose work is done in C, installed with its shim beside it.
+unit Probe;
+
+/// Doubles a number, in C.
+function Twice (N : Integer) : Integer;
+    external 'alg_probe_twice' in '$SHIM';
+UNIT
+
+    printf "uses Probe;\n\nWriteLn (Twice (21));\n" > "$P/work/prog.a24"
+
+    # The library name holds no separator, so it is SEARCHED: the unit is
+    # found by its name and the shim beside it, from a directory holding
+    # neither.
+    cd "$P/work"
+    check "a shim is found where its unit is" "42" \
+          "$("$P/bin/algc" prog.a24 2>&1 | tail -1)"
+
+    # And a shim that is nowhere names the places it looked, which is the
+    # whole of that diagnostic's job: the commonest cause is a library
+    # installed somewhere the processor does not look, and a message naming
+    # only the library cannot tell that from one never installed.
+    printf "function Gone (N : Integer) : Integer;\n    external 'alg_probe_twice' in '%s';\n\nWriteLn (Gone (1));\n" \
+        "$GONE_SHIM" > "$P/work/miss.a24"
+
+    GONE=$("$P/bin/algc" miss.a24 2>&1 | head -1)
+    cd "$ROOT"
+
+    case $GONE in
+        *"Cannot open foreign library '$GONE_SHIM'"*"the system looks."*)
+            PASS=$((PASS + 1)) ;;
+        *) FAIL=$((FAIL + 1))
+           echo "  FAIL  a missing shim names the places it looked"
+           echo "        got: $GONE" ;;
+    esac
+else
+    cd "$ROOT"
+    echo "  note: no --ffi algc or no shared library here, so [FUN-017] goes unasked"
+fi
+
 echo
 echo "the installed layout:  $PASS passed, $FAIL failed."
 

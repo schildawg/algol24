@@ -3,7 +3,7 @@
 /* The header this body was written against.  See ALG_RUNTIME_VERSION there for
    why a mismatched pair is worth one line of diagnostic rather than twenty of
    symptom. */
-_Static_assert (ALG_RUNTIME_VERSION == 302,
+_Static_assert (ALG_RUNTIME_VERSION == 400,
                 "algol.c and algol.h are from different releases");
 
 #include <math.h>
@@ -13,6 +13,14 @@ _Static_assert (ALG_RUNTIME_VERSION == 302,
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <unistd.h>
+
+/* Reading a directory [RT-026].  POSIX spells it opendir/readdir; Windows has
+   FindFirstFile under windows.h, so this header is asked for only where it
+   exists -- MinGW ships a compatibility copy, and depending on it would make
+   the build need one. */
+#if !defined(_WIN32)
+#include <dirent.h>
+#endif
 
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
@@ -3263,6 +3271,66 @@ Value alg_getdir(void) {
     return alg_string_n(here, (int32_t)strlen(here));
 }
 
+/* The fifth, and the only one that READS a directory rather than acting on
+   one.  Answers a List of the names in it, each name alone and not a path.
+
+   '.' and '..' are left out, which is the one place this is not readdir.
+   They are the directory and its parent rather than anything in it, every
+   caller would filter them, and the caller that forgot would recurse forever
+   -- so leaving them in would be a hazard dressed as fidelity.  It is also
+   what the library's own Directory already does, which is what lets this
+   replace three foreign calls without changing an answer.
+
+   The order is the FILESYSTEM'S, which is neither sorted nor stable between
+   runs.  Sorting would be a decision the name does not imply, and a caller
+   wanting one sorts the List it was given. */
+Value alg_entries(Value name) {
+    const char *path = file_name_argument(name);
+    Value       into = alg_list();
+
+#if defined(_WIN32)
+    /* FindFirstFile wants a PATTERN rather than a directory, and the
+       separator must not be doubled: 'C:\' ends in one already. */
+    char   pattern[4096];
+    size_t length = strlen(path);
+    bool   ends   = length > 0 && (path[length - 1] == '\\' || path[length - 1] == '/');
+
+    snprintf(pattern, sizeof pattern, "%s%s*", path, ends ? "" : "\\");
+
+    WIN32_FIND_DATAA found;
+    HANDLE           search = FindFirstFileA(pattern, &found);
+
+    if (search == INVALID_HANDLE_VALUE) file_error("Entries", "cannot open ", path);
+
+    do {
+        const char *entry = found.cFileName;
+
+        if (strcmp(entry, ".") == 0 || strcmp(entry, "..") == 0) continue;
+
+        alg_list_keep(into, alg_string_n(entry, (int32_t)strlen(entry)));
+    } while (FindNextFileA(search, &found));
+
+    FindClose(search);
+#else
+    DIR *reading = opendir(path);
+
+    if (reading == NULL) file_error("Entries", "cannot open ", path);
+
+    for (struct dirent *entry = readdir(reading); entry != NULL;
+         entry = readdir(reading)) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
+
+        alg_list_keep(into, alg_string_n(entry->d_name,
+                                        (int32_t)strlen(entry->d_name)));
+    }
+
+    closedir(reading);
+#endif
+
+    return into;
+}
+
 Value alg_file_exists(Value name) {
     const char *path = file_name_argument(name);
 
@@ -6470,6 +6538,112 @@ static void *dlsym(void *handle, const char *symbol) {
 #include <dlfcn.h>
 #endif
 
+/* ── Where a bare library name is looked for [FUN-017] ───────────────────
+ *
+ * The same places a module is looked for [MOD-002], asked a different
+ * question: a library's units and the shared objects they call into are
+ * installed together, so a search that found one and not the other would
+ * leave the module path delivering nothing -- `uses graph;` would resolve and
+ * the first foreign call would fail, which is exactly the half-measure this
+ * replaces.  Until this existed, a bare name went straight to dlopen and the
+ * packaging worked around it by wrapping the binary in a script that set
+ * DYLD_LIBRARY_PATH.
+ *
+ * THE OPERATING SYSTEM IS ASKED LAST, and that is load-bearing in both
+ * directions.  Our directories first means a copy shipped beside a program
+ * wins over one installed system-wide; the system last means a program naming
+ * a system library by its bare name -- `libSDL2.so` -- still reaches it.
+ *
+ * A NAME HOLDING A SEPARATOR IS NOT SEARCHED AT ALL.  That is how a program
+ * says "this exact file", which is what `shroom-slots` writes as
+ * '/opt/homebrew/lib/libSDL2.dylib' -- and it is why the failure for such a
+ * name names no place: none was tried.
+ *
+ * NO ENVIRONMENT VARIABLE, which the proposal offered as ALGOL24_PATH and
+ * this declines.  The language cannot read one -- there is no GetEnv built-in
+ * -- so a variable the runtime honored here would be unreachable from the
+ * module loader in compiler/Parser.a24, and one spelling meaning two
+ * different things for the two kinds of file is the trap, not the
+ * convenience.  Honoring it in both would mean a new always-available
+ * built-in for a case `cd` already answers. */
+#define FOREIGN_FOLDERS 3
+
+static const char *library_folders[FOREIGN_FOLDERS];
+static int32_t     library_folder_count = -1;
+
+/* The directory holding the running binary, or NULL when its path says
+   nothing.  Cut at the last separator of EITHER kind, because the path came
+   from the operating system and arrives with backslashes on Windows -- the
+   same trade compiler/Parser.a24's FolderOf makes, and for the same reason: a
+   Windows binary found no install prefix at all without it. */
+static const char *program_folder(void) {
+    if (program_path == NULL) return NULL;
+
+    int cut = -1;
+    for (int at = 0; program_path[at] != '\0'; at++)
+        if (program_path[at] == '/' || program_path[at] == '\\') cut = at;
+
+    if (cut <= 0) return NULL;
+
+    char *folder = arena_alloc((size_t)cut + 1);
+
+    memcpy(folder, program_path, (size_t)cut);
+    folder[cut] = '\0';
+
+    return folder;
+}
+
+/* Fills library_folders once, answering how many there are.  The arena rather
+   than the text heap, because these live for the whole run and are not values
+   any program can see. */
+static int32_t library_search(void) {
+    if (library_folder_count >= 0) return library_folder_count;
+
+    library_folder_count = 0;
+
+    const char *own = program_folder();
+    if (own == NULL) return 0;
+
+    /* Beside the binary, then the two layouts an install makes -- the same
+       pair compiler/Parser.a24's LibraryFolders answers for a unit, so the
+       shim is found wherever its unit was. */
+    static const char *const under[FOREIGN_FOLDERS] = {
+        "", "/lib", "/../share/algol24/lib"
+    };
+
+    for (int32_t at = 0; at < FOREIGN_FOLDERS; at++) {
+        size_t room   = strlen(own) + strlen(under[at]) + 1;
+        char  *folder = arena_alloc(room);
+
+        snprintf(folder, room, "%s%s", own, under[at]);
+        library_folders[library_folder_count++] = folder;
+    }
+
+    return library_folder_count;
+}
+
+static bool library_is_a_path(const char *library) {
+
+    return strchr(library, '/') != NULL || strchr(library, '\\') != NULL;
+}
+
+static void *foreign_open(const char *library) {
+    if (library_is_a_path(library)) return dlopen(library, RTLD_LAZY);
+
+    int32_t count = library_search();
+
+    for (int32_t at = 0; at < count; at++) {
+        char tried[4096];
+
+        snprintf(tried, sizeof tried, "%s/%s", library_folders[at], library);
+
+        void *handle = dlopen(tried, RTLD_LAZY);
+        if (handle != NULL) return handle;
+    }
+
+    return dlopen(library, RTLD_LAZY);
+}
+
 static ffi_type *foreign_type(const char *declared) {
     char base[64];
 
@@ -6523,13 +6697,30 @@ static void *foreign_resolve(const char *symbol, const char *library) {
         return found;
     }
 
-    void *handle = dlopen(library, RTLD_LAZY);
+    void *handle = foreign_open(library);
 
     if (handle == NULL) {
         Builder b = { NULL, 0, 0 };
         builder_append(&b, "Cannot open foreign library '");
         builder_append(&b, library);
-        builder_append(&b, "'.");
+        builder_append(&b, "'");
+
+        /* Where it looked, but ONLY where it looked: a name holding a
+           separator is one exact file, so naming places would be a lie.  The
+           places are named at all because the commonest cause is a library
+           installed somewhere the processor does not look, which a message
+           naming only the library cannot tell from one never installed.
+
+           Named as SHAPES and not as paths, because the paths come from the
+           running binary's own location -- so vm/conform.sh, which compares
+           this case between two builds in different directories, would see a
+           divergence where the two agree. */
+        if (!library_is_a_path(library))
+            builder_append(&b, ": not beside the binary, in 'lib' or "
+                               "'../share/algol24/lib' beside it, nor "
+                               "anywhere the system looks");
+
+        builder_append(&b, ".");
         alg_error(b.text);
     }
 

@@ -1,7 +1,8 @@
 # Proposal: A Library Path
 
-> **HALF OF THIS SHIPPED, AND HALF IS STILL OPEN.** The document is as it was
-> written; this header is the only thing added.
+> **FINISHED — both halves have shipped: the module path in v0.2.1, the shim
+> search in v0.4.0.** The document is as it was written; this header is the
+> only thing added.
 >
 > ⚠️ **The MODULE path landed in v0.2.1.** `uses X;` looks beside the importing
 > file, then the working directory, then **an installed library** — and nearer
@@ -9,30 +10,61 @@
 > means by a name. [MOD-002] carries it, and `./installed.sh` is the harness
 > that exists because no other gate asked the question.
 >
-> ⚠️ **The FOREIGN LIBRARY path did not**, and is why this is still in the root
-> rather than in `finished/`. A bare name in an `in` clause still goes straight
-> to `dlopen` with the name as written, so the operating system's rules apply:
+> ⚠️ **The FOREIGN LIBRARY path has now landed too**, as [FUN-017]. A bare name
+> in an `in` clause is searched beside the running binary, then in `lib` beside
+> it, then in `bin/../share/algol24/lib`, and only then handed to the operating
+> system — which is where it used to go first and only. A name holding a path
+> separator is that exact file and nothing is searched, so
+> `in '/opt/homebrew/lib/libSDL2.dylib'` means what it always meant.
 >
-> ```c
-> void *handle = dlopen(library, RTLD_LAZY);
-> ```
+> ⚠️ **`ALGOL24_PATH` WAS DROPPED, and the reason is one the body did not
+> have.** Open question 1 asked whether the variable was wanted at all and
+> answered "`cd` covers it". The decisive objection is sharper: **the language
+> cannot read an environment variable.** There is no `GetEnv` built-in, so a
+> variable the C runtime honored for shared objects would be unreachable from
+> the module loader in `compiler/Parser.a24` — and one spelling meaning two
+> different things for the two kinds of file is the trap rather than the
+> convenience. Honoring it for both would mean a new always-available built-in
+> for a case `cd` already answers, and the platform-dependent separator this
+> document spends a paragraph on goes with it.
 >
-> The measurement in the body still reproduces — the same program answers from
-> inside the library's directory and fails from `/tmp`. What makes it survivable
-> is a **workaround in packaging rather than a fix in the language**: the
-> Homebrew formulae wrap the binary and set `DYLD_LIBRARY_PATH` or
-> `LD_LIBRARY_PATH` for it. A program installed any other way is on its own,
-> and `algol24-library` still writes `in 'libgraphffi.so'` and relies on the
-> wrapper.
+> ⚠️ **Open question 2 answered itself once the variable was gone**: both of
+> them, `lib` beside the binary *and* `share/algol24/lib`, because those are the
+> two the module path already uses. A library's `.a24` files and the shared
+> objects they call into are **one install**, so this is not a second search
+> path so much as the same one asked a different question.
 >
-> **So the second half of this proposal is live, and the first half is the
-> argument for it**: a module path that resolves the source and then fails at
-> the first foreign call is the half-measure this document predicted.
+> ⚠️ **THE PACKAGING WORKAROUND IS GONE, which is the measurable payoff.**
+> `packaging/algol24-vm.rb` no longer sets `DYLD_LIBRARY_PATH` or
+> `LD_LIBRARY_PATH` for its wrapper: `libexec/lib` is exactly where the search
+> looks second. `ALGOL24_LIB` stays, because `graph` reads its glyph files
+> itself rather than through a processor, and exec'ing from `libexec` stays,
+> because that is what keeps `argv[0]` where the search starts from.
+>
+> ⚠️ **`./installed.sh` is what holds it, and the corpus cannot.** Every
+> conformance run is a build without libffi [INI-008], where no library is
+> opened at all — so the two new checks live in the one harness that builds an
+> install layout, and both were seen red: with the search skipped, `uses Probe;`
+> resolves and the first foreign call fails, which is the half-measure this
+> document predicted, reproduced on purpose.
+>
+> ⚠️ **Open question 4 answered itself and is worth recording as the shape of
+> the answer.** It asked whether the module search belongs in the Parser or a
+> driver; it is in the Parser, reading a list the driver sets. The shim search
+> is in the **runtime**, because that is where a library is opened — so neither
+> ended up where the question assumed, and the two halves of one feature live
+> in two different layers for the same reason: resolution goes where the
+> resolving happens.
+>
+> **Still open:** question 3 — should `--compile` copy a used unit's shims into
+> the output directory, as it copies `algol.c` and `algol.h`? The emitter does
+> know every `in` clause, but an absolute system path must not be copied, so it
+> is a policy rather than a line. And question 5, a `--where` flag.
 
 **From:** the language project, which is unusual — the four before this came
 from `algol24-library` as a user. This one comes from asking how the library
 would be *installed*, and finding that it cannot be.
-**Status:** proposal, for decision
+**Status:** accepted and built — see the header.
 **Concerns:** where two kinds of file are looked for — no change to the
 language's syntax, types, or what a program means
 

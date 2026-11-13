@@ -39,15 +39,27 @@ Counted rather than assumed, over `compiler/*.a24` and `vm/*.a24`:
 | `Foreign` | 4 |
 | `MkDir`, `RmDir`, `ChDir`, `GetDir` | 2 each |
 
-Even [RT-026]'s four directory built-ins, which look most like Turbo Pascal
-compatibility imported wholesale, are reached by the compiler's own code. There
-is no built-in in the list that exists only for programs.
+Even [RT-026]'s directory built-ins, which look most like Turbo Pascal
+compatibility imported wholesale, are reached by the compiler's own code.
 
-**`Spawn` would be the first.** Neither the compiler nor the machine ever
-starts a process — checked, and there is not one call site between them. So it
-fails the bar, and the bar is the right one.
+⚠️ **`Entries` IS THE ONE EXCEPTION, and it was admitted in v0.4.0 on a caller
+that IS NOT WRITTEN YET.** Nothing in `compiler/*.a24` or `vm/*.a24` calls it:
+the arms that name it merely forward to the host, as every built-in's arm does.
+What admitted it is that the module loader CANNOT REACH A LIBRARY UNIT -- it is
+in the seed, so it may import the compiler's own units and nothing else -- and
+folding the `uses` lookup [MOD-018] needs a directory listing. That fold is a
+decision rather than a limit now, and until it is taken the bar below is being
+read as "the compiler could not reach a library version of this" rather than as
+"the compiler calls it". `Spawn` fails it on the stronger reading too: nothing
+in either processor starts a process, and nothing would need to.
 
-This is the same argument `PROPOSAL-DIRECTORY-LISTING.md` makes *for* a
+**`Spawn` has no caller at all, written or unwritten.** Neither the compiler nor
+the machine ever starts a process — checked, and there is not one call site
+between them — and unlike a directory listing, neither has a piece of work
+waiting on one. So it fails the bar on either reading, and the bar is the right
+one.
+
+This is the same argument `finished/PROPOSAL-DIRECTORY-LISTING.md` makes *for* a
 built-in, which is why it is worth stating as a rule rather than re-deriving:
 a directory listing belongs in the core because **the module loader needs it**
 and cannot reach the library's. Process spawning has no such caller.

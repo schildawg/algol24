@@ -583,10 +583,24 @@ begin
             'TextFile'   : Exit ObjFile ();
             'FileExists' : Exit FileExists (Str (Arguments[0]));
 
-            'MkDir'  : Exit MkDir (Str (Arguments[0]));
-            'RmDir'  : Exit RmDir (Str (Arguments[0]));
-            'ChDir'  : Exit ChDir (Str (Arguments[0]));
-            'GetDir' : Exit GetDir ();
+            'MkDir'   : Exit MkDir (Str (Arguments[0]));
+            'RmDir'   : Exit RmDir (Str (Arguments[0]));
+            'ChDir'   : Exit ChDir (Str (Arguments[0]));
+            'GetDir'  : Exit GetDir ();
+
+            // The tree walker's collections are ObjCollection and never the
+            // host's, so the names have to be WRAPPED on the way out --
+            // which the other four directory built-ins never had to do,
+            // answering nil or a String.  Handing the host List straight
+            // back answered a value that RENDERED as a List and was one to
+            // nothing else: `E.Length` reported `Only instances have
+            // properties.` and `E is List` was false.
+            'Entries' : begin
+                            var Listed := ObjCollection ('List');
+                            Listed.Items := Entries (Str (Arguments[0]));
+
+                            Exit Listed;
+                        end
 
             'Buffer' : begin
                            if Arguments.Length > 1 then
@@ -799,6 +813,7 @@ begin
         Builtins.Define ('RmDir', Native ('RmDir', 1));
         Builtins.Define ('ChDir', Native ('ChDir', 1));
         Builtins.Define ('GetDir', Native ('GetDir', 0));
+        Builtins.Define ('Entries', Native ('Entries', 1));
         Builtins.Define ('ParamCount', Native ('ParamCount', 0));
         Builtins.Define ('ParamStr', Native ('ParamStr', 1));
     end

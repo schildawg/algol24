@@ -1,6 +1,6 @@
 # The Algol-24 Programming Language Specification
 
-> **Algol-24 v0.2.4.** Nineteen chapters and three annexes. Every rule is
+> **Algol-24 v0.4.0.** Nineteen chapters and three annexes. Every rule is
 > decided — what the language should do — and every rule is claimed by a case: a
 > program in `conformance/`, a refusal in `refusals/`, or a reproduction in
 > `defects/`. `spec/spec.sh` prints how many there are and checks that each
@@ -8962,6 +8962,47 @@ a limitation.
 
     conformance  0174-a-foreign-call.a24
 
+**[FUN-017]**  A library **name** in an `in` clause is searched for the way a
+module name is [MOD-002]: beside the **running binary** first, then in an
+**installed library** if there is one, and only then wherever the operating
+system itself looks.
+
+**A name holding a path separator is that exact file**, and nothing is
+searched. That is how a program says *this one and no looking* —
+`external 'SDL_Init' in '/opt/homebrew/lib/libSDL2.dylib'` — and it is why the
+failure for such a name names no place: none was tried.
+
+**The system is last, and that is not a detail.** Our directories first means a
+copy a program ships beside itself wins over one installed system-wide; the
+system last means that naming a system library by its bare name — `libSDL2.so`
+— still reaches it, which is what a program could always do.
+
+**The same directories as the units', because a library is one install.** A
+library's `.a24` files and the shared objects they call into are installed
+together, so a search that found one and not the other would leave [MOD-002]
+delivering nothing: `uses graph;` would resolve and the first foreign call
+would fail. This is not a second search path so much as the same one asked a
+different question.
+
+**Where the installed library is, the implementation decides**, exactly as
+[MOD-002] leaves it. A processor has no way to be told its own install prefix,
+so it answers from its own binary's path.
+
+**Failure names the places searched** — `Cannot open foreign library 'X': not
+in …` — for the reason a missing module's does: the commonest cause is a
+library installed somewhere the processor does not look, and a message naming
+only the library cannot tell that from a library that was never installed.
+
+**The corpus reaches the failure and not the search**, because every
+conformance run is a build without libffi [INI-008], where no library is
+opened at all. `conformance/0174` writes a bare library name, and
+`vm/conform.sh` compares that case between two builds that *do* have libffi,
+which is what holds the processors to one answer; `./installed.sh` is what
+holds the search itself, being the only harness that builds an install layout
+to ask from.
+
+    conformance  0174-a-foreign-call.a24
+
 ### 11.6 Extensions
 
 **[FUN-015]**  A top-level subprogram may be marked `extension`, which permits
@@ -11358,6 +11399,11 @@ package manager installs units outside the program's directory, so without it
 every importing file — which is not a library so much as a convention about
 where to copy one.
 
+**A unit that calls into C needs its shared objects found too**, and that is
+[FUN-017]: the same directories, asked a different question. A module path
+alone would resolve the source and fail at the first foreign call, which is
+most of what an installed library is.
+
     conformance  0082-module-import.a24
 
 **[MOD-003]**  A module is loaded and executed **once**, keyed by its resolved
@@ -11594,8 +11640,12 @@ this.
 
 **What is NOT refused is a case-differing *reference*.** `uses alpha;` finding
 `Alpha.a24` is the lookup [MOD-002] describes, and it still succeeds or fails by
-the filesystem's rules — folding that would need the language to enumerate a
-directory, which [RT-026] gives it no way to do.
+the filesystem's rules. Folding that would mean the loader enumerating a
+directory and comparing each stem folded, which [RT-026]'s `Entries` now makes
+possible — so this is a **decision** rather than a limit: the lookup is still
+the filesystem's because no project has yet reported a `uses` that resolves on
+one platform and fails on another, and changing which file a program finds is a
+change to what existing programs mean.
 
     refusals      0200-two-units-differing-only-in-case.a24
 
@@ -11924,7 +11974,7 @@ from the module
 
 ### 16.1 The set
 
-**[RT-001]**  Forty-one names are built in. Thirty-eight are always
+**[RT-001]**  Forty-two names are built in. Thirty-nine are always
 available:
 
 ```
@@ -11935,7 +11985,7 @@ clock   Collect
 Fields  TypeOf     Member     Invoke     New   SetMember
 List    Set   Stack Array      Map   Buffer
 TextFile      FileExists
-MkDir   RmDir ChDir GetDir
+MkDir   RmDir ChDir GetDir     Entries
 ParamCount    ParamStr
 Write   WriteLn    ErrorLn    Halt
 ```
@@ -12853,10 +12903,11 @@ false
 
     conformance  0092-environment-builtins.a24
 
-**[RT-026]**  Four built-ins reach the **directory** the program runs in.
+**[RT-026]**  Five built-ins reach the **directory** the program runs in.
 `MkDir(Dir)` makes one, `RmDir(Dir)` removes one, `ChDir(Dir)` moves the
-program to one, and `GetDir()` answers where it is, as an **absolute** path.
-The first three answer `nil`, as `Write` does; only `GetDir` reports.
+program to one, `GetDir()` answers where it is, as an **absolute** path, and
+`Entries(Dir)` answers a **List** of the names in one. The three that act
+answer `nil`, as `Write` does; the two that read report.
 
 **Each does exactly what its name says, and nothing on the way.** `MkDir` makes
 **one** directory — it is not `mkdir -p`, so a missing parent is a failure
@@ -12873,6 +12924,26 @@ them answers a status code to be checked or ignored.
 **`GetDir` takes nothing.** Turbo Pascal's selects a drive, and this language
 runs where there are none; an argument that could never change the answer would
 only read as though it might.
+
+**`Entries` answers a name, never a path.** Each element is the entry's own
+name as the directory records it, so a program wanting a path joins it to the
+directory it asked about — which is the only form that stays right when the
+directory was named relatively.
+
+**`.` and `..` are not entries**, which is the one place this is not the
+operating system's own reading. They are the directory and its parent rather
+than anything in it; every caller would filter them, and the caller that forgot
+would recurse forever. Leaving them in would be fidelity to a system call at the
+cost of a hazard in the language.
+
+**The order is the filesystem's**, which is neither sorted nor stable between
+runs. Sorting would be a decision the name does not imply, and a program that
+wants one sorts the List it was given — so a program must not depend on the
+order it receives, and a program comparing output sorts.
+
+**A directory that cannot be read raises**, in the same voice as the other
+four — `Entries failed: cannot open 'x'.` — so a missing path, a path naming a
+file, and a directory the program may not read are one answer and not three.
 
 ##### conformance/0183-directories.a24
 
@@ -12924,6 +12995,75 @@ RmDir failed: cannot remove 'scratch-0183'.
 ChDir failed: cannot change to 'scratch-0183'.
 RmDir failed: cannot remove 'scratch-0183'.
 true
+```
+
+##### conformance/0224-a-directory-lists-itself.a24
+
+```algol24
+// A directory this case makes, fills, lists and removes again, so it leaves
+// nothing behind. Every listing is SORTED before it is printed, because the
+// order Entries answers in is the filesystem's and is neither sorted nor
+// stable between runs -- which is what a program depending on an order has to
+// do, and what makes this case comparable at all.
+MkDir ('scratch-0224');
+
+// An empty directory answers an EMPTY List: '.' and '..' are not entries.
+// They are the directory and its parent rather than anything in it.
+WriteLn (Entries ('scratch-0224').Length);
+
+var F := TextFile ();
+
+for var Name in ['beta.txt', 'alpha.txt', 'gamma.txt'] do
+begin
+    F.Assign ('scratch-0224/' + Str (Name));
+    F.Rewrite ();
+    F.Close ();
+end
+
+MkDir ('scratch-0224/inner');
+
+// Each element is the entry's own name and never a path, and a directory is
+// an entry like any other.
+var Found := Entries ('scratch-0224');
+Found.Sort ();
+WriteLn (Found);
+
+// So reaching one means joining it to the directory that was asked about: the
+// name alone is a path to somewhere else.
+WriteLn (FileExists ('scratch-0224/' + Str (Found[0])));
+WriteLn (FileExists (Str (Found[0])));
+
+// A failure says what failed and names what it was given, in the voice a file
+// that cannot be opened uses [RT-024]. A missing path and a path naming a
+// FILE are one answer and not two.
+try WriteLn (Entries ('scratch-0224/absent'));
+except on E : String do WriteLn (E); end
+
+try WriteLn (Entries ('scratch-0224/alpha.txt'));
+except on E : String do WriteLn (E); end
+
+// Nothing left behind, which the listing is what makes possible.
+for var Name in Found do
+    if Str (Name) = 'inner' then RmDir ('scratch-0224/inner');
+    else
+    begin
+        F.Assign ('scratch-0224/' + Str (Name));
+        F.Erase ();
+    end
+
+RmDir ('scratch-0224');
+WriteLn (FileExists ('scratch-0224'));
+```
+
+```console
+$ algc conformance/0224-a-directory-lists-itself.a24
+0
+[alpha.txt, beta.txt, gamma.txt, inner]
+true
+false
+Entries failed: cannot open 'scratch-0224/absent'.
+Entries failed: cannot open 'scratch-0224/alpha.txt'.
+false
 ```
 
 **[RT-030]**  `ErrorLn` writes its stringified values to the **error stream**,
@@ -15653,7 +15793,7 @@ productions from memory is not.
 
 ## Annex B — index of built-in functions *(non-normative)*
 
-The forty-one built-in names, with the rule specifying each. `spec/spec.sh`
+The forty-two built-in names, with the rule specifying each. `spec/spec.sh`
 checks this list — and the count in this sentence — against the names the
 interpreter actually registers.
 
@@ -15695,6 +15835,7 @@ interpreter actually registers.
 | `RmDir` | [RT-026] | Removes an empty directory, never a tree |
 | `ChDir` | [RT-026] | Moves the program to another directory |
 | `GetDir` | [RT-026] | Where the program is, as an absolute path |
+| `Entries` | [RT-026] | The names in a directory, as a List; `.` and `..` left out |
 | `TextFile` | [RT-024] | A text file handle |
 | `ParamCount` | [RT-013] | The argument count, not counting the program |
 | `ParamStr` | [RT-013] | An argument by index; 0 is the program |

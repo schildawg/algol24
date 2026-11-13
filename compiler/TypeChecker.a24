@@ -128,7 +128,8 @@ begin
     Names := Set();
 
     for var Name in ['Array', 'AssertEqual', 'AssertTrue', 'Buffer', 'ChDir',
-                     'Char', 'clock', 'Collect', 'Copy', 'ErrorLn', 'Fail',
+                     'Char', 'clock', 'Collect', 'Copy', 'Entries', 'ErrorLn',
+                     'Fail',
                      'Fields', 'FileExists', 'Foreign', 'GetDir', 'Halt',
                      'Invoke', 'Member', 'New', 'SetMember',
                      'Length',
@@ -288,11 +289,14 @@ begin
         Lookup.SetType ('Write',   'Nil');
         Lookup.SetType ('WriteLn', 'Nil');
 
-        // The three that act answer Nil, as Write does; only GetDir reports.
-        Lookup.SetType ('MkDir',  'Nil');
-        Lookup.SetType ('RmDir',  'Nil');
-        Lookup.SetType ('ChDir',  'Nil');
-        Lookup.SetType ('GetDir', 'String');
+        // The three that act answer Nil, as Write does; the two that read
+        // report -- GetDir where the program is, Entries what is in a
+        // directory.
+        Lookup.SetType ('MkDir',   'Nil');
+        Lookup.SetType ('RmDir',   'Nil');
+        Lookup.SetType ('ChDir',   'Nil');
+        Lookup.SetType ('GetDir',  'String');
+        Lookup.SetType ('Entries', 'List');
 
         Lookup.SetType ('Ord',  'Integer');
         Lookup.SetType ('Char', 'Char');
@@ -317,7 +321,7 @@ begin
                          'Set', 'Stack', 'Buffer', 'TextFile', 'FileExists',
                          'ParamCount', 'ParamStr', 'Write', 'WriteLn', 'Ord',
                          'Val', 'Char', 'clock', 'ToUpper', 'ToLower',
-                         'MkDir', 'RmDir', 'ChDir', 'GetDir'] do
+                         'MkDir', 'RmDir', 'ChDir', 'GetDir', 'Entries'] do
             BuiltinTypes.Put (Name, Lookup.GetType (Name));
 
         for var Name in ['Any', 'Boolean', 'Integer', 'Double', 'String', 'Char',
