@@ -133,12 +133,26 @@ begin
     /// legal and merely costly gets a warning instead, which is what keeps the
     /// emitter's 'Unsupported (...)' sites meaning only one thing.
     ///
+    /// It is written to the ERROR STREAM, which is what tells it from an
+    /// `[ERROR]` excerpt.  Those go to standard output [ERR-005] because a
+    /// parse or type error means no statement runs [ERR-002] -- there is no
+    /// program output for them to mix with.  A warning is the opposite case by construction:
+    /// it reports a cost rather than a fault, so the program runs and prints,
+    /// and a warning on standard output interleaves with what the program
+    /// produced.  That broke anything comparing a program's output byte for
+    /// byte, which `algol24-library` reported as L-4 and defended against by
+    /// auditing extension names rather than by anything the language offered.
+    ///
+    /// ErrorLn rather than a raw write, so standard output is flushed first
+    /// [RT-030]: stderr is unbuffered, and without the flush a warning would
+    /// appear ahead of output the program had already written.
+    ///
     /// # Satisfies
     ///
-    /// [ERR-010]
+    /// [ERR-010], [RT-030]
     procedure Warn (Text : String);
     begin
-        WriteLn (WARN_TAG + Text);
+        ErrorLn (WARN_TAG + Text);
     end
 
     /// Writes a passing test's line, with a dot leader out to the verdict.

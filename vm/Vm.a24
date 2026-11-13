@@ -2144,9 +2144,10 @@ begin
 
         // A CONSTRUCTOR may be overloaded like any other method, so which one
         // runs depends on the arguments.
-        var Setup := ChosenMethod (Callee, 'init', Count);
+        // THIS CLASS'S OWN, not the chain's -- see OwnChosenMethod.
+        var Setup := OwnChosenMethod (Callee, 'init', Count);
 
-        if Setup = Nil then Setup := Callee.FindMethod ('init');
+        if Setup = Nil then Setup := OwnFindMethod (Callee, 'init');
 
         // A class with no constructor still answers an instance: there is
         // nothing to call, and the instance is already where the class was.
@@ -3571,6 +3572,49 @@ begin
     end
 
     Exit Nil;
+end
+
+/// Selects among a class's OWN candidates for a name, ignoring its parents.
+///
+/// The question a CONSTRUCTOR wants, where a method wants the chain.  The
+/// emitter gives every class a complete Init set -- a synthesized arity-0 one
+/// where it declares none, and a forwarder per inherited signature for a
+/// subclass that declares none -- so a class's own list is already the whole
+/// answer, and walking past it reaches a signature the class does not offer.
+///
+/// `class Thing (Base)` declaring `Init (W : Integer)` over a Base that
+/// declares no constructor found Base's SYNTHESIZED arity-0 Init, so
+/// `Thing ()` constructed an instance with a nil field where both other
+/// processors answer `Expected 1 arguments but got 0.`  An implicit no-
+/// argument constructor belongs to a class that has none [CLS-004]; it is not
+/// a declared overload for a subclass to inherit.
+///
+/// # Satisfies
+/// [CLS-004], [EXP-014]
+function OwnChosenMethod (Klass : Any, Wanted : Any, Count : Integer) : Any;
+begin
+    for var Pass : Integer := 0; Pass <= 2; Pass := Pass + 1 do
+    begin
+        var Candidates := Klass.CandidatesFor (Wanted);
+
+        if Candidates <> Nil then
+            for var TheCandidate in Candidates as List do
+                if AnswersOn (TheCandidate, Count, Pass) then Exit TheCandidate;
+    end
+
+    Exit Nil;
+end
+
+/// A class's OWN candidate for a name at any count, or Nil where it declares
+/// none -- the own-only counterpart of FindMethod.
+function OwnFindMethod (Klass : Any, Wanted : Any) : Any;
+begin
+    var Candidates := Klass.CandidatesFor (Wanted);
+
+    if Candidates = Nil then Exit Nil;
+    if (Candidates as List).Length = 0 then Exit Nil;
+
+    Exit (Candidates as List)[0];
 end
 
 /// Whether a candidate answers on one pass: exact, widening, then absorbing.

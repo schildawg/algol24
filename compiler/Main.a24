@@ -306,8 +306,13 @@ begin
 
     var Runtime := RuntimeFolder ();
 
+    // On the error stream, as every other '[WARN]' is: a diagnostic must not
+    // land in the output of whatever is reading this driver, which is the
+    // whole of L-4.  Written plainly rather than through Console.Warn so it
+    // carries no ANSI tag and does not join the five lines spec.sh holds
+    // [ERR-010].
     if Runtime = '' then
-        WriteLn ('[WARN] algol.c and algol.h were not found, so ' + OutDir
+        ErrorLn ('[WARN] algol.c and algol.h were not found, so ' + OutDir
                + ' will not compile on its own.');
     else
     begin

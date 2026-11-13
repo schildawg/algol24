@@ -758,8 +758,13 @@ fi
 # provoke it however it is written -- spec/warning-emitted.a24 is compiled for
 # exactly that one, and its line is quoted after the others.  Appending the two
 # runs in that order is what lets a single comparison hold all of them.
+# ⚠️ BOTH RUNS CAPTURE THE ERROR STREAM, because a warning is written there.
+# This discarded it, which was right while Console.Warn used WriteLn and became
+# a check that could never see its subject the moment the warning moved to
+# where a diagnostic belongs -- it would have reported ERR-010 quoting a
+# warning nothing raises, naming the rule rather than the stream.
 if [ -x bootstrap/algc ]; then
-    bootstrap/algc spec/warning.a24 2>/dev/null \
+    bootstrap/algc spec/warning.a24 2>&1 \
       | sed "s/$(printf '\033')\\[[0-9;]*m//g" \
       | grep '^\[WARN\]' > "$WORK/warn_actual" || true
 
@@ -771,6 +776,26 @@ if [ -x bootstrap/algc ]; then
     awk '/\*\*\[ERR-010\]\*\*/{f=1; next}
          f && /^\*\*\[[A-Z]+-[0-9]+\]\*\*/{exit}
          f && /^\[WARN\] /{print}' "$SPEC" > "$WORK/warn_spec"
+
+    # ⚠️ AND NOTHING ON STANDARD OUTPUT, which is the half the comparison above
+    # cannot see: it greps a merged capture, so a warning written to the wrong
+    # stream still matches.  A warning is NON-BLOCKING, so the program runs and
+    # prints -- sharing its stream interleaved a diagnostic with the program's
+    # own output and broke anything comparing that output byte for byte.
+    # `algol24-library` reported it as L-4 and could only defend against it by
+    # auditing names.  The conformance corpus cannot hold this either, because
+    # render() drops [WARN] from both sides by design.
+    bootstrap/algc spec/warning.a24 2>/dev/null \
+      | sed "s/$(printf '\033')\\[[0-9;]*m//g" \
+      | grep '^\[WARN\]' > "$WORK/warn_stdout" || true
+
+    if [ -s "$WORK/warn_stdout" ]; then
+        problem "ERR-010's warning is written to standard output, where it
+      mixes with the program's own:
+      $(head -1 "$WORK/warn_stdout")"
+    else
+        echo "  ERR-010's warnings keep off standard output"
+    fi
 
     if [ ! -s "$WORK/warn_actual" ]; then
         problem "ERR-010 quotes a warning that spec/warning.a24 does not raise"

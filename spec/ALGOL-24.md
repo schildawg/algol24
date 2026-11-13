@@ -9375,6 +9375,16 @@ the program wrote and there is no `C.Init` at a call site. A
 class with no constructor takes no arguments — `C(1, 2)` on such a class is
 `Expected 0 arguments but got 2.`
 
+⚠️ **AND THAT IS A PROPERTY OF A CLASS WITHOUT ONE, NOT A SIGNATURE A SUBCLASS
+INHERITS.** A subclass declaring `Init (N : Integer)` over a parent that
+declares no constructor is refused at no arguments, however little the parent
+asks for. The bytecode machine offered it until v0.3.2, constructing an
+instance with its fields unset where the other two processors refuse: the
+emitter gives a constructor-less class a synthesized arity-0 `Init`, and
+selection walked the chain and found it. Construction selects among a class's
+**own** constructors, which the emitter always makes complete — a forwarder per
+inherited signature is what a subclass declaring none receives [0205].
+
     conformance  0065-construction.a24
     conformance  0204-a-constructor-is-selected-too.a24
 
@@ -9619,6 +9629,30 @@ end
 WriteLn (Twice (1).Which);
 WriteLn (Twice ('x').Which);
 
+// A SUBCLASS THAT DECLARES ITS OWN CONSTRUCTOR DOES NOT ALSO OFFER ITS
+// PARENT'S IMPLICIT ONE.  Bare declares no constructor and so takes none
+// [CLS-004] -- that is a property of a class WITHOUT one, not a declared
+// signature for a subclass to inherit, so `Holder ()` is refused however
+// little Bare asks for.
+//
+// ⚠️ Bare and not Base: Base declares `Init (N : Integer)`, which Holder's own
+// constructor of that arity would JOIN as a second candidate -- making the
+// count genuinely ambiguous and the answer a selection failure [EXP-014].
+// This case is about the IMPLICIT constructor, so the parent must have none.
+class Holder (Bare);
+var Kept : Any := Nil;
+begin
+    constructor Init (N : Integer); begin this.Kept := N; end
+end
+
+WriteLn (Holder (3).Kept);
+
+try
+    WriteLn (Holder ());
+except
+    on e : String do WriteLn (e);
+end
+
 // super.Init runs the parent's BODY, and the fields it seeded are not seeded
 // again -- one instance, one evaluation of each initializer [CLS-005].
 class Child (Base);
@@ -9651,6 +9685,8 @@ No matching signature for Derived.
 Expected 0 arguments but got 1.
 integer
 string
+3
+Expected 1 arguments but got 0.
 in Base.Init, Extra=child Named=Child
 Tag=base/10 Extra=child/5 calls=1
 ```
@@ -11766,6 +11802,20 @@ value.
 **[MOD-011]**  `System` is the unit of the built-in functions. No file imports
 it and every file may qualify against it: `System.Copy('abcdef', 0, 3)`.
 
+**A VARIADIC built-in takes any number of arguments through the qualifier
+too**, because the qualified spelling reaches the same built-in and nothing
+about the qualifier is a count. `Write`, `WriteLn` and `ErrorLn` each take any
+number [RT-001], including **none**, and `System.WriteLn ('a', 'b')` is
+`System.WriteLn` with two arguments and not a different subprogram.
+
+⚠️ **THE C BACK END REFUSED THAT PAST ONE ARGUMENT UNTIL v0.3.2**, which put
+exactly what this rule exists to guarantee out of reach — and it landed on one
+kind of program in particular. A unit that declares its own `Write` and
+`WriteLn` makes the qualified spelling the only console route a program using
+it has, so such a program could report a single value and no more. The same
+omission refused `Write ()` and `ErrorLn ()` with **no** arguments in either
+spelling, the table carrying a no-argument form for `WriteLn` alone.
+
 ##### conformance/0086-system-unit.a24
 
 ```algol24
@@ -11779,6 +11829,20 @@ WriteLn (System.Length ('abc'));
 
 // The bare spellings are the same functions.
 WriteLn (System.Copy ('abcdef', 0, 3) = Copy ('abcdef', 0, 3));
+
+// A VARIADIC built-in through the qualifier, at every count: none, one, and
+// more than one.  Nothing about a qualifier is a count [RT-001].
+System.WriteLn ();
+System.WriteLn ('one');
+System.WriteLn ('two', '-', 2);
+System.Write ('a');
+System.Write ('b', 'c');
+System.WriteLn ();
+
+// And the bare spelling with no arguments at all, for the two that had no
+// no-argument form.
+Write ();
+WriteLn ('after an empty Write');
 ```
 
 ```console
@@ -11786,6 +11850,11 @@ $ algc conformance/0086-system-unit.a24
 abc
 3
 true
+
+one
+two-2
+abc
+after an empty Write
 ```
 
 ### 15.4 Cycles
@@ -13303,6 +13372,14 @@ absorbs [FUN-005]; a type rather than a class is refused as [RT-032] says.
 instance is **closed** — a field the class never declared is
 `Undefined property 'Nope'.` rather than a new member.
 
+⚠️ **A WRONG COUNT IS REPORTED HERE TOO**, as a written construction reports
+it [EXP-011] and on the same terms [EXP-014]: the counts where the name is
+unambiguous, the class where several constructors make it ambiguous. `New`
+checked the argument *types* and not the count until v0.3.2 — too few leaked
+an internal subscript error and too many were **discarded**, answering an
+instance. The check belongs where construction happens rather than at a call
+site, because this spelling reaches no call site at all.
+
 **A by-name write honours the type the field's declaration wrote**, because an
 assignment is an assignment context [VAL-001]: an Integer into a `Double`
 field widens to a Double, and a value outside a subrange is refused by name.
@@ -13384,6 +13461,21 @@ except on E : String do WriteLn (E); end
 // [EXP-013], which is what a wrong count reports for a method too [0049].
 try WriteLn (Str (New (Thing, ['x'])));
 except on E : String do WriteLn (E); end
+
+// A WRONG COUNT IS REPORTED, exactly as the written form reports it.  New
+// answered an internal subscript error for too few arguments and silently
+// DISCARDED the extras for too many -- answering a plausible instance, which
+// is the shape of fault that reports success.  The check belongs where
+// construction happens, so every route into it is held to the same terms.
+try WriteLn (Str (New (Thing, [])));
+except on E : String do WriteLn (E); end
+
+try WriteLn (Str (New (Thing, [7, 8])));
+except on E : String do WriteLn (E); end
+
+// A class with no constructor takes none, through this spelling too [CLS-004].
+try WriteLn (Str (New (Base, [1])));
+except on E : String do WriteLn (E); end
 ```
 
 ```console
@@ -13400,6 +13492,9 @@ Only instances have fields.
 Integer is a type rather than a class, and cannot be constructed.
 New expects a List of arguments.
 No matching signature for Thing.
+Expected 1 arguments but got 0.
+Expected 1 arguments but got 2.
+Expected 0 arguments but got 1.
 ```
 
 **[RT-035]**  `T.Accepts (X)` answers whether `X` satisfies the type `T`,
@@ -14878,9 +14973,21 @@ still a failure and must not exit 0 [INI-005].
 ### 18.4 Warnings
 
 **[ERR-010]**  A **warning** reports a cost, not a fault. It is written with a
-`[WARN]` tag in **yellow**, beside `[INFO]` and `[ERROR]`, and it is
-**non-blocking**: the program compiles and runs exactly as it would without it,
-and its exit status is unaffected [ERR-009].
+`[WARN]` tag in **yellow**, beside `[INFO]` and `[ERROR]`, on the **error
+stream**, and it is **non-blocking**: the program compiles and runs exactly as
+it would without it, and its exit status is unaffected [ERR-009].
+
+⚠️ **THE STREAM IS WHAT TELLS A WARNING FROM AN `[ERROR]` EXCERPT.** Those go
+to standard output [ERR-005], and may, because a parse or type error means **no
+statement runs** [ERR-002] — there is no program output for them to mix with. A
+warning is the opposite case by construction: the program runs and prints, so a
+warning sharing that stream interleaves with what the program produced. It was
+written to standard output until v0.3.2, which broke anything comparing a
+program's output byte for byte and made a legitimately ambiguous overload — or,
+after extension functions, a name some class gains a member of in a later
+version — able to narrate into the output of a program that had done nothing
+wrong. Standard output is flushed first [RT-030], so a warning never appears
+ahead of output already written.
 
 **Five warnings are raised.** The first: a call that will select among
 overloads **at run time** [FUN-013] says so.

@@ -2721,6 +2721,81 @@ was always written first and only *appeared* second because it sat in a buffer.
 prints. 75 cases in the specification, one defect `.current` file and one prose
 example were regenerated for it.
 
+⚠️ **A `[WARN]` GOES TO STDERR AND AN `[ERROR]` EXCERPT GOES TO STDOUT, and
+the distinction is whether the PROGRAM RUNS.** A parse or type error means no
+statement runs [ERR-002], so an excerpt has no program output to mix with; a
+warning is non-blocking by definition, so the program runs and prints, and a
+warning sharing that stream interleaves with it. `Console.Warn` used `WriteLn`
+until v0.3.2 — reported by `algol24-library` as L-4 and defended against there
+by auditing extension names, since nothing in the language offered a defence.
+It goes through `ErrorLn`, which flushes stdout first [RT-030].
+
+⚠️ **`spec/spec.sh` CHECKS BOTH HALVES OF THAT, and the first one alone would
+not have noticed.** Its ERR-010 comparison greps a MERGED capture, so a
+warning on the wrong stream still matches the quoted wording — there is a
+second check asserting nothing matching `[WARN]` reaches stdout, and it was
+seen red with the fix reverted. The corpus cannot hold either: `render()`
+drops `[WARN]` from both sides by design.
+
+⚠️ **`New (T, Args)` REACHES NO CALL SITE, so a constructor's count must be
+checked where construction HAPPENS.** `VisitCall` checked it and
+`ObjClass.Call` did not, which left `New` checking a constructor's argument
+*types* and not its count — too few leaked `Index 0 out of range 0..-1.` from
+`ObjFunction.Call` subscripting an empty `Arguments`, and too many were
+silently **discarded**, answering a plausible instance. `algol24-library`'s
+L-6. The machine was the one processor that got it right, because it checks in
+`EnterFrame` — every way into a frame on the same terms.
+
+⚠️ **And `ObjClass.Call`'s comment SAID the count came from
+`ObjFunction.Call`, which checks nothing at all.** It binds `Arguments[I]` per
+declared parameter; that subscript IS the error. A comment stating where a
+check lives is a claim like any other.
+
+⚠️ **TWO CHECKS FOR ONE QUESTION DISAGREED about an OVERLOADED constructor.**
+`Callee.Arity()` is one particular `Init`'s arity, so `Pair (1, 2, 3)` where
+two constructors each take one argument reported `Expected 1 arguments but got
+3.` as though that arity were the only one — where the count is ambiguous and
+the class is what to name [EXP-014]. `VisitCall` no longer counts a class at
+all; `ObjClass.Call` does, because only it can ask how many candidates there
+are.
+
+⚠️ **A VARIADIC BUILT-IN NEEDS THE SAME PATH IN BOTH SPELLINGS.** The plain
+one had the join inline and `UnitCall`'s `System` branch asked only the
+name/count table — which a variadic built-in has no one count to key on — so
+`System.WriteLn ('a', 'b')` was refused by the C back end while
+`WriteLn ('a', 'b')` compiled. `algol24-library`'s L-5, and it lands on a
+`graph` program specifically: `graph` shadows `Write` and `WriteLn`, so the
+qualified spelling is the only console route such a program has.
+`CEmitter.JoiningBuiltin` is the one definition both now call.
+
+⚠️ **MEASURE THE WHOLE SURFACE, NOT THE REPORTED CELL.** L-5 named
+`System.WriteLn` past one argument; a matrix of Write/WriteLn/ErrorLn × 0–3
+arguments × both spellings × three processors found **eight** wrong cells, two
+of them in the PLAIN spelling — `Write ()` and `ErrorLn ()` with no arguments,
+because the table carried `writeln/0` and neither of the other two.
+
+⚠️ **CONSTRUCTION SELECTS AMONG A CLASS'S OWN CONSTRUCTORS, NEVER THE
+CHAIN'S**, and the machine walked the chain. The emitter gives a
+constructor-less class a synthesized arity-0 `Init`, so `class Thing (Base)`
+declaring `Init (W : Integer)` over a `Base` that declares none found Base's
+synthesized one — and `Thing ()` **constructed an instance with its field
+unset** where both other processors answer `Expected 1 arguments but got 0.`
+An implicit no-argument constructor is a property of a class that HAS none
+[CLS-004], not a signature a subclass inherits. `OwnChosenMethod` and
+`OwnFindMethod` are the own-only pair; a method still wants
+`ChosenMethod`/`FindMethod`, which walk.
+
+⚠️ **The emitter already makes that set complete, which is what makes
+own-only correct** — a subclass declaring no constructor gets a forwarder per
+inherited signature, so its own list covers everything it can be constructed
+with. `OwnCandidates` exists for the same reason one step along: counting the
+chain made `class AlsoBare (Bare)` look like two candidates.
+
+⚠️ **ADDING THE MISSING CASES IS WHAT FOUND IT.** Three defects were reported;
+writing the corpus cases for them surfaced a fourth that no report mentioned,
+in the written spelling rather than the reflective one. A reported defect is
+worth treating as a sample of its class rather than as the whole of it.
+
 ⚠️ **`bootstrap/algc` AND `vm/algvm` both link the hand-written `algol.c`, so
 changing it means rebuilding BOTH.** Rebuilding only the compiler left the
 machine on the old runtime, and `defects.sh` caught it where neither corpus did
