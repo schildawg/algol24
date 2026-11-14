@@ -198,9 +198,10 @@ line for a `-DALG_FFI` build — a packaging script, a self-contained example �
 adds `-lm` beside `-lffi`, or the link fails naming `atan`. The five in this
 repository pass it already.
 
-**The bundle moves too.** `algol24-vm` carries `algol24-library` 0.3.0, which
-is that library's own Windows release. Its number is its own and does not track
-this one.
+**The bundle moves too.** `algol24-vm` carries `algol24-library` 0.3.1 — 0.3.0
+being that library's own Windows release, and 0.3.1 the `-lm` and `-rdynamic`
+its link lines need for the two build requirements named above. Its number is
+its own and does not track this one.
 
 ---
 
