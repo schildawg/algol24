@@ -172,17 +172,39 @@ _exports_found=0
 # because it is worth about 24% to this loop, and the probe's OUTPUT decides.
 # Preferring LTO and then picking any flag that merely links is what shipped a
 # broken Windows binary twice.
+# ⚠️ A FLAG THAT QUIETLY MOVES THE ENTRY POINT LINKS AND THEN HANGS, and no
+# comparison of OUTPUT can catch that.  GNU ld reads -export_dynamic as
+# `-e xport_dynamic` -- the ENTRY SYMBOL -- warns `cannot find entry symbol
+# xport_dynamic; defaulting to 00000000000006c0`, and links anyway.  The
+# executable then begins in the middle of nothing and spins at 100% for ever:
+# with 2>/dev/null hiding the warning and nothing bounding the run,
+# ./vm/build.sh never returned at all on Linux, where --export-dynamic sits one
+# place later in this list and works perfectly.  So the ELF spelling is tried
+# BEFORE Apple's, and a link that names an entry symbol is refused however it
+# is spelled.
+#
+# ⚠️ EITHER HALF ALONE WOULD DO HERE, and both are kept because they fail
+# differently.  The order is what makes the working flag reachable on a
+# toolchain known today; the entry-symbol test is what stops the next
+# toolchain's spelling of the same misparse from hanging a build again.  A
+# crash the probe already catches, and a silence -- MinGW's -export_dynamic --
+# the printed answer catches.  A HANG was the third way, and it was the one
+# way that cost an hour before anything said so.
 _try_exports () {
-    for _flag in "-Wl,--export-all-symbols" "-Wl,-export_dynamic" \
-                 "-Wl,--export-dynamic" "-rdynamic" ""; do
+    for _flag in "-Wl,--export-all-symbols" "-Wl,--export-dynamic" \
+                 "-rdynamic" "-Wl,-export_dynamic" ""; do
         for _dl in "" "-ldl"; do
             # shellcheck disable=SC2086
-            if [ "$($CC $CFLAGS $1 $_flag -o "$WORK/exports" \
-                        "$WORK/exports.c" "$WORK/exports_target.c" $_dl \
-                        2>/dev/null && "$WORK/exports" 2>/dev/null)" = "usable" ]; then
-                EXPORTS="$_flag"
-                return 0
-            fi
+            $CC $CFLAGS $1 $_flag -o "$WORK/exports" \
+                "$WORK/exports.c" "$WORK/exports_target.c" $_dl \
+                2>"$WORK/exports.log" || continue
+
+            if grep -q 'entry symbol' "$WORK/exports.log"; then continue; fi
+
+            if [ "$("$WORK/exports" 2>/dev/null)" != "usable" ]; then continue; fi
+
+            EXPORTS="$_flag"
+            return 0
         done
     done
 

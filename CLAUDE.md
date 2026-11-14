@@ -1932,6 +1932,26 @@ the released body is never handed back at its own size class, which is case
   not use. `-export_dynamic` on MinGW is the sharpest case — it links, and
   produces an executable that runs and prints nothing at all.
 
+  ⚠️ **AND THE THIRD WAY IS A HANG, WHICH OUTPUT CANNOT CATCH — `./vm/build.sh`
+  DID NOT FINISH ON LINUX AT ALL.** GNU ld reads `-export_dynamic` as
+  `-e xport_dynamic`, the **entry symbol**: it warns `cannot find entry symbol
+  xport_dynamic`, links anyway, and the executable begins in the middle of
+  nothing and spins at 100% for ever. Apple's spelling was tried SECOND and
+  GNU/ELF's third, so the working flag was never reached — with `2>/dev/null`
+  hiding the warning and nothing bounding the run, the build simply never
+  returned. An hour of a probe at 99% CPU is what named it. The ELF spelling
+  goes first now, and a link naming an entry symbol is refused however it is
+  spelled; macOS lands on `-rdynamic`, measured still running the C loop
+  (0.73 s against 1.27 for `--algol-loop`).
+
+  ⚠️ **THAT IS WHY THIS PROBE HAS NO BOUND AND `collector.sh` DOES.** The same
+  rule is already written down one section along — *a collector failure may be
+  a HANG, so each run is bounded* — and the probe runs a binary built from a
+  flag combination nothing has vouched for, which is strictly the more
+  dangerous thing to run. It is not bounded because `timeout` is coreutils and
+  macOS does not ship it, so the check here is the warning rather than a clock.
+  A portable bound is the better answer and wants more than a line.
+
   ⚠️ **macOS needs NO flag at all, which is why a wrong one went unnoticed.**
   The lookup succeeds with `-export_dynamic`, with `-rdynamic` and with
   nothing, so the hard-coded flag was never load-bearing here and could not
