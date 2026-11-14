@@ -482,6 +482,30 @@ arity warning would have diverged every case with a wrong-count call in it,
   hello-scripts README. The default build is untouched, so
   `cc -std=c11 -O2 -o DIR/prog DIR/*.c` still needs nothing.
 
+  ⚠️ **AND A SHIM LINKED *INTO* A PROGRAM NEEDS THE PROGRAM TO EXPORT ITS OWN
+  SYMBOLS, which is the same lesson `vm/build.sh` already probes for.** No
+  library name means the running program [FUN-014] — and an executable's own
+  symbols do not enter the table a by-name lookup searches unless it was linked
+  to export them. So a self-contained application builds and then answers
+  `No foreign symbol` at its first call, on **Linux alone**: Mach-O needs
+  nothing and PE wants `--export-all-symbols`. `-rdynamic` is the driver's
+  spelling on ELF.
+
+  ⚠️ **THERE IS NO RUNTIME ANSWER TO IT, which was measured rather than
+  assumed.** `dlopen(NULL, RTLD_GLOBAL)` succeeds and `dlsym` on that handle
+  still does not find the symbol, so the runtime cannot work around a link that
+  did not export. Only the link can put a symbol in that table.
+
+  ⚠️ **NOTHING HERE BUILT THAT SHAPE, which is why it was found downstream.**
+  Every other check loads a shim from a FILE; a program that links its own C
+  and resolves it from itself is what an application is, and
+  `algol24-library`'s example app is one — `No foreign symbol
+  'alg_random_seed'`, with a comment in its build script asserting ELF needed
+  no flag and citing `vm/build.sh` while concluding the opposite.
+  `installed.sh` has the check now, and it exercises **both** halves of
+  [FUN-014]'s build requirement at once: the emitted program links `-lm` and
+  calls a bare `external 'atan'` beside the linked-in shim.
+
   ⚠️ **A FILE-SCOPE POINTER COULD NOT HOLD THAT REFERENCE.** `double
   (*const anchor)(double) = atan;` is discarded under `-flto`: LTO sees the
   whole program, finds nothing that reads it, internalizes it and drops it, and

@@ -140,6 +140,20 @@ not — which is better than linking and answering `No foreign symbol` at the
 call. The default build is untouched, so `cc -std=c11 -O2 -o DIR/prog DIR/*.c`
 still needs nothing but a C compiler.
 
+**And a shim linked *into* a program needs the program to export its own
+symbols.** No library name means the running program [FUN-014], and an
+executable's symbols do not enter the table a by-name lookup searches unless it
+was linked to export them — `-rdynamic` on ELF, `--export-all-symbols` on PE,
+nothing on Mach-O. A self-contained application otherwise builds and answers
+`No foreign symbol` at its first call, on Linux alone.
+
+[FUN-014] says so now, and names the limit plainly: it is the one rule in the
+specification that can be satisfied or not by how a *correct* program is
+**built**. There is no runtime answer — `dlopen(NULL, RTLD_GLOBAL)` succeeds
+and `dlsym` on that handle still does not find the symbol, so only the link can
+put it there. `./installed.sh` holds both halves of that requirement now, in
+one check that links a shim in and calls a bare `external 'atan'` beside it.
+
 ### End-of-line conversion was passing by accident
 
 `collector/**` is held byte-exact in `.gitattributes`, as `conformance/`,

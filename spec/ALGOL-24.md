@@ -8731,6 +8731,22 @@ arguments are marshalled: an Integer or a Boolean passes as a machine word, a
 Double as a double, a String as a NUL-terminated C string, and a `Pointer` as
 itself [TYP-013].
 
+⚠️ **"ALREADY LINKED" IS A PROPERTY OF THE BUILD AND NOT OF THE LANGUAGE**, and
+two things have to be true of it. The library must be **loaded** — a linker that
+drops one nothing references leaves its symbols nowhere, which is why a
+processor offering this has to reference the C library's math itself rather than
+merely pass `-lm`. And a symbol compiled **into the program** must be
+*exported*: an executable's own symbols do not enter the table a by-name lookup
+searches unless it was linked to export them, so `-rdynamic` on ELF and
+`--export-all-symbols` on PE, where Mach-O needs nothing. Neither is
+discoverable from the program text, and a build that gets either wrong fails at
+the call rather than at the link.
+
+**That is a conformance limit worth naming**: this rule can be satisfied or not
+by how a correct program is *built*, which is true of nothing else in this
+specification. A processor can only answer for the binary it is, and
+`./installed.sh` is where this implementation holds itself to both halves.
+
 **THE LANGUAGE DEFINES THE CALL AND NOT THE CALLEE**, and this is the first
 place that sentence has been needed. What a foreign function does, whether the
 symbol exists, and whether the declared types match the C ones are all outside
