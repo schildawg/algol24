@@ -30,6 +30,113 @@ _Static_assert (ALG_RUNTIME_VERSION == 400,
 #include <windows.h>
 #include <io.h>
 #include <fcntl.h>
+#include <direct.h>
+#include <wchar.h>
+#endif
+
+/* ------------------------------------------------------------ host paths -- */
+/*
+ * ⚠️ ON WINDOWS EVERY PATH GOES WIDE, because the language's text is UTF-8
+ * and the C library's narrow calls are not: fopen, mkdir, chdir, getcwd,
+ * remove, rename and the A entry points decode by the ANSI code page. So
+ * `TextFile ('café.txt')` opened a file nobody had named, GetDir answered a
+ * non-ASCII directory mangled, and Entries listed names in a code page the
+ * program could not read. The library's `file` unit was measured doing the
+ * same -- it found and listed its own mangled files perfectly, and missed a
+ * name git had written. Each wrapper below widens once with
+ * MultiByteToWideChar and calls the W form; elsewhere it is the plain call.
+ * Text that is not valid UTF-8 fails as an unopenable path would.
+ */
+
+#if defined(_WIN32)
+
+/* UTF-8 as UTF-16, malloc'd, or NULL if it is not valid UTF-8. */
+static wchar_t *host_wide(const char *utf8) {
+    int need = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8, -1, NULL, 0);
+    if (need <= 0) return NULL;
+
+    wchar_t *wide = malloc((size_t)need * sizeof *wide);
+    if (wide == NULL) return NULL;
+
+    if (!MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8, -1, wide, need)) {
+        free(wide);
+        return NULL;
+    }
+    return wide;
+}
+
+/* UTF-16 as UTF-8, malloc'd, or NULL. */
+static char *host_utf8(const wchar_t *wide) {
+    int need = WideCharToMultiByte(CP_UTF8, 0, wide, -1, NULL, 0, NULL, NULL);
+    if (need <= 0) return NULL;
+
+    char *utf8 = malloc((size_t)need);
+    if (utf8 == NULL) return NULL;
+
+    if (!WideCharToMultiByte(CP_UTF8, 0, wide, -1, utf8, need, NULL, NULL)) {
+        free(utf8);
+        return NULL;
+    }
+    return utf8;
+}
+
+static FILE *host_fopen(const char *path, const char *mode) {
+    wchar_t *wide = host_wide(path);
+    wchar_t *how  = host_wide(mode);
+    FILE    *f    = (wide != NULL && how != NULL) ? _wfopen(wide, how) : NULL;
+
+    free(wide);
+    free(how);
+    return f;
+}
+
+/* One path in, an int out: remove, mkdir, rmdir and chdir share the shape. */
+static int host_path_call(int (*call)(const wchar_t *), const char *path) {
+    wchar_t *wide = host_wide(path);
+    if (wide == NULL) return -1;
+
+    int answer = call(wide);
+
+    free(wide);
+    return answer;
+}
+
+static int host_remove(const char *path) { return host_path_call(_wremove, path); }
+static int host_mkdir(const char *path)  { return host_path_call(_wmkdir,  path); }
+static int host_rmdir(const char *path)  { return host_path_call(_wrmdir,  path); }
+static int host_chdir(const char *path)  { return host_path_call(_wchdir,  path); }
+
+static int host_rename(const char *from, const char *to) {
+    wchar_t *a = host_wide(from);
+    wchar_t *b = host_wide(to);
+    int      answer = (a != NULL && b != NULL) ? _wrename(a, b) : -1;
+
+    free(a);
+    free(b);
+    return answer;
+}
+
+/* The working directory as UTF-8 into `into`, or NULL. */
+static char *host_getcwd(char *into, size_t size) {
+    wchar_t here[4096];
+
+    if (_wgetcwd(here, 4096) == NULL) return NULL;
+    if (!WideCharToMultiByte(CP_UTF8, 0, here, -1, into, (int)size, NULL, NULL))
+        return NULL;
+
+    return into;
+}
+
+#else
+
+static FILE *host_fopen(const char *path, const char *mode) { return fopen(path, mode); }
+static int host_remove(const char *path) { return remove(path); }
+static int host_rename(const char *from, const char *to) { return rename(from, to); }
+static int host_mkdir(const char *path)  { return mkdir(path, 0777); }
+static int host_rmdir(const char *path)  { return rmdir(path); }
+static int host_chdir(const char *path)  { return chdir(path); }
+static char *host_getcwd(char *into, size_t size) { return getcwd(into, size); }
+
 #endif
 
 #define ARENA_CHUNK (1024 * 1024)
@@ -2957,7 +3064,7 @@ static void file_open(ObjFile *file, const char *what, const char *mode, bool re
     file_closed(file, what);
     file_named(file, what);
 
-    file->handle = fopen(file->name, mode);
+    file->handle = host_fopen(file->name, mode);
     if (file->handle == NULL) file_error(what, "cannot open ", file->name);
 
     file->reading   = reading;
@@ -3128,7 +3235,7 @@ static bool file_method(Value receiver, const char *name, Value *args, int32_t c
         file_closed(file, "Erase");
         file_named(file, "Erase");
 
-        if (remove(file->name) != 0) file_error("Erase", "cannot delete ", file->name);
+        if (host_remove(file->name) != 0) file_error("Erase", "cannot delete ", file->name);
 
         *result = alg_nil();
         return true;
@@ -3138,7 +3245,7 @@ static bool file_method(Value receiver, const char *name, Value *args, int32_t c
         file_named(file, "Rename");
 
         const char *to = file_name_argument(args[0]);
-        if (rename(file->name, to) != 0) {
+        if (host_rename(file->name, to) != 0) {
             char message[512];
             snprintf(message, sizeof message,
                      "Rename failed: cannot rename '%s' to '%s'.", file->name, to);
@@ -3236,11 +3343,7 @@ Value alg_mkdir(Value name) {
     /* 0777 masked by the process umask, as the shell's mkdir does -- so the
        directory lands with whatever permissions the user's environment says,
        rather than with something this runtime picked. */
-#if defined(_WIN32)
-    if (mkdir(path) != 0) file_error("MkDir", "cannot create ", path);
-#else
-    if (mkdir(path, 0777) != 0) file_error("MkDir", "cannot create ", path);
-#endif
+    if (host_mkdir(path) != 0) file_error("MkDir", "cannot create ", path);
 
     return alg_nil();
 }
@@ -3248,7 +3351,7 @@ Value alg_mkdir(Value name) {
 Value alg_rmdir(Value name) {
     const char *path = file_name_argument(name);
 
-    if (rmdir(path) != 0) file_error("RmDir", "cannot remove ", path);
+    if (host_rmdir(path) != 0) file_error("RmDir", "cannot remove ", path);
 
     return alg_nil();
 }
@@ -3256,7 +3359,7 @@ Value alg_rmdir(Value name) {
 Value alg_chdir(Value name) {
     const char *path = file_name_argument(name);
 
-    if (chdir(path) != 0) file_error("ChDir", "cannot change to ", path);
+    if (host_chdir(path) != 0) file_error("ChDir", "cannot change to ", path);
 
     return alg_nil();
 }
@@ -3267,7 +3370,7 @@ Value alg_chdir(Value name) {
 Value alg_getdir(void) {
     char here[4096];
 
-    if (getcwd(here, sizeof here) == NULL)
+    if (host_getcwd(here, sizeof here) == NULL)
         alg_error("GetDir failed: cannot read the working directory.");
 
 #if defined(_WIN32)
@@ -3311,18 +3414,27 @@ Value alg_entries(Value name) {
 
     snprintf(pattern, sizeof pattern, "%s%s*", path, ends ? "" : "\\");
 
-    WIN32_FIND_DATAA found;
-    HANDLE           search = FindFirstFileA(pattern, &found);
+    /* Wide in and wide out: a name comes back as UTF-16 and goes to the
+       program as UTF-8, rather than through a code page it cannot read. */
+    wchar_t *wide_pattern = host_wide(pattern);
+
+    WIN32_FIND_DATAW found;
+    HANDLE           search = wide_pattern != NULL ? FindFirstFileW(wide_pattern, &found)
+                                                   : INVALID_HANDLE_VALUE;
+    free(wide_pattern);
 
     if (search == INVALID_HANDLE_VALUE) file_error("Entries", "cannot open ", path);
 
     do {
-        const char *entry = found.cFileName;
+        if (wcscmp(found.cFileName, L".") == 0 || wcscmp(found.cFileName, L"..") == 0)
+            continue;
 
-        if (strcmp(entry, ".") == 0 || strcmp(entry, "..") == 0) continue;
+        char *entry = host_utf8(found.cFileName);
+        if (entry == NULL) continue;
 
         alg_list_keep(into, alg_string_n(entry, (int32_t)strlen(entry)));
-    } while (FindNextFileA(search, &found));
+        free(entry);
+    } while (FindNextFileW(search, &found));
 
     FindClose(search);
 #else
@@ -3348,7 +3460,7 @@ Value alg_entries(Value name) {
 Value alg_file_exists(Value name) {
     const char *path = file_name_argument(name);
 
-    FILE *probe = fopen(path, "r");
+    FILE *probe = host_fopen(path, "r");
     if (probe == NULL) return alg_bool(false);
 
     fclose(probe);
@@ -3376,17 +3488,28 @@ static char *resolve_program(char *argv0) {
         if (real != NULL) return real;
     }
 #elif defined(_WIN32)
-    DWORD used = GetModuleFileNameA(NULL, buffer, (DWORD)sizeof buffer);
-    if (used > 0 && used < sizeof buffer) {
-        char *full = _fullpath(NULL, buffer, 0);
-        if (full != NULL) return full;
+    /* Wide, so an install under a non-ASCII folder still finds the `lib`
+       beside it [MOD-002]; the A forms would answer that folder's name in
+       the ANSI code page. */
+    (void)buffer;
+    wchar_t module[4096];
+    DWORD   used = GetModuleFileNameW(NULL, module, 4096);
+    if (used > 0 && used < 4096) {
+        wchar_t *full = _wfullpath(NULL, module, 0);
+        char    *utf8 = full != NULL ? host_utf8(full) : NULL;
+        free(full);
+        if (utf8 != NULL) return utf8;
     }
 #endif
 
 #if defined(_WIN32)
     if (argv0 != NULL && (strchr(argv0, '/') != NULL || strchr(argv0, '\\') != NULL)) {
-        char *full = _fullpath(NULL, argv0, 0);
-        if (full != NULL) return full;
+        wchar_t *wide = host_wide(argv0);
+        wchar_t *full = wide != NULL ? _wfullpath(NULL, wide, 0) : NULL;
+        char    *utf8 = full != NULL ? host_utf8(full) : NULL;
+        free(wide);
+        free(full);
+        if (utf8 != NULL) return utf8;
     }
 #else
     if (argv0 != NULL && strchr(argv0, '/') != NULL) {
@@ -3398,7 +3521,55 @@ static char *resolve_program(char *argv0) {
     return argv0;
 }
 
+#if defined(_WIN32)
+/* The command line as UTF-8 arguments, or `argv` unchanged if that cannot be
+ * had.
+ *
+ * ⚠️ main's argv is already DECODED BY THE ANSI CODE PAGE on Windows, so
+ * `algc café.a24` asked for a file that did not exist and ParamStr answered
+ * text the program never received. The wide command line is the truth, and
+ * CommandLineToArgvW splits it as every Windows program's runtime does.
+ *
+ * ⚠️ Reached through LoadLibrary rather than linked, because it lives in
+ * shell32 -- and naming shell32 would add a library to every link line this
+ * project documents, `cc -std=c11 -O2 -o prog *.c` included, and break each
+ * one that exists. shell32.dll is on every Windows there is. Where it is not
+ * found, or splits into a different count than the C runtime did, the narrow
+ * argv stands: no worse than before, and never a wrong count. */
+static char **wide_arguments(int argc, char **argv) {
+    typedef LPWSTR *(WINAPI *Splitter)(LPCWSTR, int *);
+
+    HMODULE  shell = LoadLibraryW(L"shell32.dll");
+    Splitter split = shell != NULL ? (Splitter)(void (*)(void))GetProcAddress(shell, "CommandLineToArgvW")
+                                   : NULL;
+    if (split == NULL) return argv;
+
+    int      count = 0;
+    LPWSTR  *wide  = split(GetCommandLineW(), &count);
+    if (wide == NULL) return argv;
+
+    char **utf8 = count == argc ? calloc((size_t)argc + 1, sizeof *utf8) : NULL;
+
+    for (int i = 0; utf8 != NULL && i < argc; i++) {
+        utf8[i] = host_utf8(wide[i]);
+        if (utf8[i] == NULL) {
+            for (int j = 0; j < i; j++) free(utf8[j]);
+            free(utf8);
+            utf8 = NULL;
+        }
+    }
+
+    LocalFree(wide);
+
+    return utf8 != NULL ? utf8 : argv;
+}
+#endif
+
 void alg_set_arguments(int argc, char **argv) {
+#if defined(_WIN32)
+    argv = wide_arguments(argc, argv);
+#endif
+
     argument_count  = argc;
     argument_values = argv;
 
@@ -6539,7 +6710,16 @@ Value alg_pred(Value v) { return stepped(v, -1, "Pred"); }
 
 static void *dlopen(const char *library, int mode) {
     (void)mode;
-    return (void *)LoadLibraryA(library);
+
+    /* Wide for the same reason as every path here: a library in a folder
+       named in UTF-8 is not where the A form would look. */
+    wchar_t *wide = host_wide(library);
+    if (wide == NULL) return NULL;
+
+    HMODULE module = LoadLibraryW(wide);
+
+    free(wide);
+    return (void *)module;
 }
 
 static void *dlsym(void *handle, const char *symbol) {
