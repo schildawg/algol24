@@ -17,8 +17,8 @@
 class Algol24Vm < Formula
   desc "Bytecode machine for Algol-24, with the Algol-24 runtime library"
   homepage "https://github.com/schildawg/algol24"
-  url "https://github.com/schildawg/algol24/archive/refs/tags/v0.4.0.tar.gz"
-  sha256 "94437f3fb0f71354125705d3e199974868d4c9111f315095d1bcaaf8d73bbbb2"
+  url "https://github.com/schildawg/algol24/archive/refs/tags/v0.4.1.tar.gz"
+  sha256 "74725884c4ab13469e9091501dcfa181195642b3666f26fc20e48361c6b4d7cd"
   license "MIT"
   head "https://github.com/schildawg/algol24.git", branch: "main"
 
