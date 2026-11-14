@@ -16,7 +16,7 @@ an old thing, when the old-looking surface is the deliberate part and the
 capability behind it is the point. Pascal may be named as the *syntax's*
 lineage, never as the language's identity.
 
-**v0.4.0.** The language is **stable, not closed**: it changes only on measured
+**v0.4.1.** The language is **stable, not closed**: it changes only on measured
 demand from a project using it, and the measurement goes in the proposal. That
 is the whole policy, and it replaces the sentence this file used to carry about
 the language being done — which had to be rewritten at every release that
@@ -447,12 +447,47 @@ arity warning would have diverged every case with a wrong-count call in it,
   case passes; a program wanting `pow` needs no library name at all.
 
   ⚠️ **A BARE LIBRARY NAME IS SEARCHED AND A PATH IS NOT** [FUN-017]. Beside
-  the running binary, then `lib` beside it, then `bin/../share/algol24/lib` —
-  the same places a unit is looked for [MOD-002], because a library's units
-  and its shims are one install — and only then the operating system's own
-  resolution. A name holding a separator is that exact file, so
-  `in '/opt/homebrew/lib/libSDL2.dylib'` means what it always meant, and its
-  failure names no place because none was tried.
+  the running binary, then `lib` beside it, then `bin/../share/algol24/lib`,
+  then **the working directory** — the same places a unit is looked for
+  [MOD-002], because a library's units and its shims are one install — and
+  only then the operating system's own resolution. A name holding a separator
+  is that exact file, so `in '/opt/homebrew/lib/libSDL2.dylib'` means what it
+  always meant, and its failure names no place because none was tried.
+
+  ⚠️ **THE WORKING DIRECTORY WAS MISSING UNTIL 0.4.1, AND ONLY LINUX COULD
+  SHOW IT.** A unit is found there and its shim was not, so a program run from
+  the directory holding both resolved the `uses` and failed its first foreign
+  call — one place short of the half-measure [FUN-017] exists to end, which is
+  the shape a library is DEVELOPED in. macOS and Windows search the current
+  directory in their own loaders, so the OS step was already finding the file;
+  Linux does not, and the library's whole suite failed at its first unit.
+  `installed.sh` has the check and **it cannot go red on macOS** for exactly
+  that reason — the same thing already true of its two Windows-only checks.
+
+  ⚠️ **IT IS LAST OF OURS RATHER THAN SECOND**, where [MOD-002] puts it for a
+  unit. Second would change which file an existing program opens; last can only
+  turn a failure into a success. So a unit taken from the working directory may
+  still pair with a shim from an install, which needs one name duplicated
+  across both places to happen at all.
+
+  ⚠️ **AN `--ffi` LINK MUST NOW PASS `-lm`, and that is deliberate rather than
+  incidental.** A bare-named `external` resolves from the running program, so
+  `external 'atan'` wants libm *in the process* — and on Linux it is a library
+  of its own that nothing in the runtime called, so `--as-needed` dropped an
+  unreferenced `-lm` and `ldd` showed libc alone. `algol.c` holds a reference
+  under `ALG_FFI` so the dependency is real, which means a `-DALG_FFI` link
+  without `-lm` now fails to link naming `atan` rather than running and
+  answering `No foreign symbol`. Five link lines here pass it:
+  `bootstrap/build.sh`, `vm/build.sh`, `installed.sh`, `vm/conform.sh` and the
+  hello-scripts README. The default build is untouched, so
+  `cc -std=c11 -O2 -o DIR/prog DIR/*.c` still needs nothing.
+
+  ⚠️ **A FILE-SCOPE POINTER COULD NOT HOLD THAT REFERENCE.** `double
+  (*const anchor)(double) = atan;` is discarded under `-flto`: LTO sees the
+  whole program, finds nothing that reads it, internalizes it and drops it, and
+  `ldd` read libc alone a second time. The reference has to be an *access* —
+  a `volatile` local initialized from `atan`, called once from
+  `alg_set_arguments`, which every generated `main` calls first.
 
   ⚠️ **THE DIAGNOSTIC NAMES SHAPES AND NOT PATHS, and that is forced rather
   than terse.** The places come from the running binary's own location, so
@@ -2484,8 +2519,8 @@ fails on Windows, so a tested `lib` was found on two platforms and not the
 third.
 
 ⚠️ **It would have caught NEITHER on a Unix, which was checked rather than
-assumed.** With the directory test put back it still passes 9 of 9 on macOS —
-`fopen` on a directory succeeding here is exactly why the defect reached
+assumed.** With the directory test put back it still passes every check on
+macOS — `fopen` on a directory succeeding here is exactly why the defect reached
 Windows undetected. So the separator defect is guarded by a Parser unit test
 handing `FolderOf` a literal backslash, and the directory defect by this script
 running in the **windows** workflow. What it guards everywhere is the layout

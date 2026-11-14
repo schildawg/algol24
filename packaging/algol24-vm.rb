@@ -38,14 +38,14 @@ class Algol24Vm < Formula
   end
 
   # ⚠️ PINNED, and to a VERSION rather than a branch: the bundle is a pairing
-  # of two releases, and `algol24-vm 0.4.0` carrying `algol24-library 0.2.0`
+  # of two releases, and `algol24-vm 0.4.1` carrying `algol24-library 0.3.0`
   # says which.  The library's number is its own and does not track this one --
   # it is a separate repository with its own release events and its own defect
   # record, where algc and algvm are two binaries from one tree and so share a
   # version.
   resource "library" do
-    url "https://github.com/schildawg/algol24-library/archive/refs/tags/v0.2.0.tar.gz"
-    sha256 "f5709dd5d7ab2972f3678a81fd9e961afa4fd6d37f4b310d65cf754a2d5565d3"
+    url "https://github.com/schildawg/algol24-library/archive/refs/tags/v0.3.0.tar.gz"
+    sha256 "828582c52db181d0a4b2e95f1fc1340215d9722b55b6c995d1408f0cd24bf3dd"
   end
 
   def install

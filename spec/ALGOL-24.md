@@ -1,6 +1,6 @@
 # The Algol-24 Programming Language Specification
 
-> **Algol-24 v0.4.0.** Nineteen chapters and three annexes. Every rule is
+> **Algol-24 v0.4.1.** Nineteen chapters and three annexes. Every rule is
 > decided — what the language should do — and every rule is claimed by a case: a
 > program in `conformance/`, a refusal in `refusals/`, or a reproduction in
 > `defects/`. `spec/spec.sh` prints how many there are and checks that each
@@ -8964,8 +8964,16 @@ a limitation.
 
 **[FUN-017]**  A library **name** in an `in` clause is searched for the way a
 module name is [MOD-002]: beside the **running binary** first, then in an
-**installed library** if there is one, and only then wherever the operating
-system itself looks.
+**installed library** if there is one, then in the **working directory**, and
+only then wherever the operating system itself looks.
+
+⚠️ **The working directory is last of ours rather than second**, which is where
+[MOD-002] puts it for a unit. A shim found there is the one case the two
+searches order differently, and the reason is that this rule arrived a release
+after the other: placing it second would change which file an existing program
+opens, where placing it last can only turn a failure into a success. A unit
+taken from the working directory may therefore pair with a shim taken from an
+install — which needs a name duplicated in both places to happen at all.
 
 **A name holding a path separator is that exact file**, and nothing is
 searched. That is how a program says *this one and no looking* —
@@ -11402,7 +11410,9 @@ where to copy one.
 **A unit that calls into C needs its shared objects found too**, and that is
 [FUN-017]: the same directories, asked a different question. A module path
 alone would resolve the source and fail at the first foreign call, which is
-most of what an installed library is.
+most of what an installed library is. The working directory is one of those
+directories for both, though [FUN-017] asks it later in its order than this
+rule does — the note there says why.
 
     conformance  0082-module-import.a24
 

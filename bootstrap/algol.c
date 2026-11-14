@@ -3,7 +3,7 @@
 /* The header this body was written against.  See ALG_RUNTIME_VERSION there for
    why a mismatched pair is worth one line of diagnostic rather than twenty of
    symptom. */
-_Static_assert (ALG_RUNTIME_VERSION == 400,
+_Static_assert (ALG_RUNTIME_VERSION == 401,
                 "algol.c and algol.h are from different releases");
 
 #include <math.h>
@@ -3565,7 +3565,43 @@ static char **wide_arguments(int argc, char **argv) {
 }
 #endif
 
+#ifdef ALG_FFI
+/* ⚠️ THE RUNTIME HOLDS A REFERENCE TO libm SO THAT A BARE-NAMED external CAN
+   REACH IT, and without one `external 'atan'` answered
+   `No foreign symbol 'atan'.` on Linux alone.  A name with no `in` clause is
+   resolved from the running program [FUN-017], which on macOS means libSystem
+   and has always had math in it; on Linux libm is a library of its own, and
+   nothing in this runtime called it -- so --as-needed, the default on Ubuntu,
+   dropped an unreferenced -lm and left the symbol in no loaded object at all.
+   `ldd` showed libc alone.  The library's whole suite failed at its first unit
+   for this, and `math` is 78 tests of it.
+
+   An undefined reference is what makes a dependency NEEDED, so this is C
+   rather than a flag: -Wl,--no-as-needed says the same thing and is GNU-only,
+   which would mean probing for a spelling the language can state portably.
+
+   ⚠️ IT HAS TO BE A REFERENCE THE COMPILER MAY NOT DROP.  A file-scope
+   `double (*const anchor)(double) = atan;` is not one: LTO sees the whole
+   program, finds nothing that reads it, internalizes it and discards it, and
+   `ldd` read libc alone a second time.  The volatile local's initialization is
+   an access, which the compiler must keep however little it accomplishes.
+
+   Guarded by ALG_FFI because a build without it opens no library and resolves
+   no symbol, so the documented `cc -std=c11 -O2 -o DIR/prog DIR/*.c` is
+   unchanged.  A build passing -DALG_FFI already passes -lffi and now passes
+   -lm beside it. */
+static void libm_anchor(void) {
+    double (*volatile reached)(double) = atan;
+
+    (void)reached;
+}
+#endif
+
 void alg_set_arguments(int argc, char **argv) {
+#ifdef ALG_FFI
+    libm_anchor();
+#endif
+
 #if defined(_WIN32)
     argv = wide_arguments(argc, argv);
 #endif
@@ -6775,7 +6811,7 @@ static void *dlsym(void *handle, const char *symbol) {
  * different things for the two kinds of file is the trap, not the
  * convenience.  Honoring it in both would mean a new always-available
  * built-in for a case `cd` already answers. */
-#define FOREIGN_FOLDERS 3
+#define FOREIGN_FOLDERS 4
 
 static const char *library_folders[FOREIGN_FOLDERS];
 static int32_t     library_folder_count = -1;
@@ -6811,22 +6847,45 @@ static int32_t library_search(void) {
     library_folder_count = 0;
 
     const char *own = program_folder();
-    if (own == NULL) return 0;
 
     /* Beside the binary, then the two layouts an install makes -- the same
        pair compiler/Parser.a24's LibraryFolders answers for a unit, so the
        shim is found wherever its unit was. */
-    static const char *const under[FOREIGN_FOLDERS] = {
-        "", "/lib", "/../share/algol24/lib"
-    };
+    if (own != NULL) {
+        static const char *const under[] = {
+            "", "/lib", "/../share/algol24/lib"
+        };
 
-    for (int32_t at = 0; at < FOREIGN_FOLDERS; at++) {
-        size_t room   = strlen(own) + strlen(under[at]) + 1;
-        char  *folder = arena_alloc(room);
+        for (size_t at = 0; at < sizeof under / sizeof *under; at++) {
+            size_t room   = strlen(own) + strlen(under[at]) + 1;
+            char  *folder = arena_alloc(room);
 
-        snprintf(folder, room, "%s%s", own, under[at]);
-        library_folders[library_folder_count++] = folder;
+            snprintf(folder, room, "%s%s", own, under[at]);
+            library_folders[library_folder_count++] = folder;
+        }
     }
+
+    /* ⚠️ AND THE WORKING DIRECTORY, WHICH A UNIT IS FOUND IN [MOD-002] AND ITS
+       SHIM WAS NOT.  A program run from the directory holding both resolved the
+       `uses` and failed its first foreign call -- the exact half-measure
+       [FUN-017] was written to end, one place short.  It survived because
+       macOS and Windows hide it: their loaders search the current directory
+       themselves, so the OS step below was already finding the file.  Linux's
+       does not, which is where the library's whole suite failed at its first
+       unit.
+
+       LAST OF OUR PLACES AND NOT NEARER, deliberately.  Put ahead of the
+       install layouts it would mirror MOD-002's own order, where the working
+       directory beats an installed library -- but it would also change which
+       file an existing program finds, and here it can only turn a failure into
+       a success: the two platforms that already searched it find the same file
+       one step earlier, and the one that did not now finds it at all.  So a
+       unit taken from the working directory can still pair with a shim from an
+       install, which is a mismatch [FUN-017] otherwise exists to prevent; it
+       needs both names duplicated across both places to happen at all, and
+       moving this entry is a decision for a release that may change what a
+       program means. */
+    library_folders[library_folder_count++] = ".";
 
     return library_folder_count;
 }
@@ -6926,8 +6985,9 @@ static void *foreign_resolve(const char *symbol, const char *library) {
            divergence where the two agree. */
         if (!library_is_a_path(library))
             builder_append(&b, ": not beside the binary, in 'lib' or "
-                               "'../share/algol24/lib' beside it, nor "
-                               "anywhere the system looks");
+                               "'../share/algol24/lib' beside it, in the "
+                               "working directory, nor anywhere the system "
+                               "looks");
 
         builder_append(&b, ".");
         alg_error(b.text);

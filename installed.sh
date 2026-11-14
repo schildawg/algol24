@@ -17,8 +17,8 @@
 #
 # ⚠️ IT WOULD HAVE CAUGHT NEITHER OF THOSE ON A UNIX, and that was checked
 # rather than assumed: with the directory test put back, this script still
-# passes 9 of 9 on macOS -- because fopen on a directory SUCCEEDS here, which
-# is precisely why the defect reached Windows undetected.  So:
+# passes every check on macOS -- because fopen on a directory SUCCEEDS here,
+# which is precisely why the defect reached Windows undetected.  So:
 #
 #   - run on Windows, where fopen on a directory fails, it has teeth for the
 #     second defect, and the windows workflow runs it for that reason;
@@ -190,10 +190,13 @@ esac
 # ones.
 case $(uname -s 2>/dev/null || echo unknown) in
     Darwin) SHIM=libprobeffi.dylib; GONE_SHIM=libnowhereffi.dylib
+            HERE_SHIM=libhereffi.dylib
             SHIM_FLAGS="-dynamiclib" ;;
     Linux)  SHIM=libprobeffi.so;    GONE_SHIM=libnowhereffi.so
+            HERE_SHIM=libhereffi.so
             SHIM_FLAGS="-shared -fPIC" ;;
     *)      SHIM=libprobeffi.dll;   GONE_SHIM=libnowhereffi.dll
+            HERE_SHIM=libhereffi.dll
             SHIM_FLAGS="-shared" ;;
 esac
 
@@ -206,7 +209,7 @@ cat > "$WORK/probe.c" <<'C'
 int alg_probe_twice(int n) { return n * 2; }
 C
 
-if "${CC:-cc}" -std=c11 -O2 -DALG_FFI -o "$P/bin/algc" "$ROOT"/bootstrap/*.c -lffi \
+if "${CC:-cc}" -std=c11 -O2 -DALG_FFI -o "$P/bin/algc" "$ROOT"/bootstrap/*.c -lffi -lm \
         > "$WORK/shim.log" 2>&1 &&
    "${CC:-cc}" $SHIM_FLAGS -o "$P/share/algol24/lib/$SHIM" "$WORK/probe.c" \
         >> "$WORK/shim.log" 2>&1; then
@@ -228,6 +231,24 @@ UNIT
     cd "$P/work"
     check "a shim is found where its unit is" "42" \
           "$("$P/bin/algc" prog.a24 2>&1 | tail -1)"
+
+    # ⚠️ AND IN THE WORKING DIRECTORY, which a unit is found in [MOD-002] and a
+    # shim was not until 0.4.1.  This is the shape a library is DEVELOPED in --
+    # units and shims in one directory, the compiler installed elsewhere -- so
+    # it was the first thing the library's own suite did and the first thing
+    # that failed, on Linux alone.  macOS and Windows hid it by searching the
+    # current directory in their own loaders, which is why only the platform
+    # that does not could show it.
+    cd "$ROOT"
+    "${CC:-cc}" $SHIM_FLAGS -o "$P/work/$HERE_SHIM" "$WORK/probe.c" \
+        >> "$WORK/shim.log" 2>&1
+
+    printf "function Here (N : Integer) : Integer;\n    external 'alg_probe_twice' in '%s';\n\nWriteLn (Here (21));\n" \
+        "$HERE_SHIM" > "$P/work/here.a24"
+
+    cd "$P/work"
+    check "a shim is found in the working directory" "42" \
+          "$("$P/bin/algc" here.a24 2>&1 | tail -1)"
 
     # And a shim that is nowhere names the places it looked, which is the
     # whole of that diagnostic's job: the commonest cause is a library

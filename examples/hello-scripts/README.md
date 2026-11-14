@@ -36,7 +36,7 @@ the same frame takes about 3 ms.
 mkdir -p build
 ../../bootstrap/algc --compile --out=build hello.a24
 cp ../../bootstrap/algol.c ../../bootstrap/algol.h build/
-cc -std=c11 -O2 -DALG_FFI -o build/hello build/*.c -lffi
+cc -std=c11 -O2 -DALG_FFI -o build/hello build/*.c -lffi -lm
 ./build/hello
 ```
 

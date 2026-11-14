@@ -34,7 +34,10 @@ ALGC="${ALGC:-bootstrap/algc}"
 OUT="${1:-vm/algvm}"
 
 FFI_CFLAGS="${FFI_CFLAGS:--DALG_FFI}"
-FFI_LIBS="${FFI_LIBS:--lffi}"
+# -lm for the reason bootstrap/build.sh gives: a bare-named external resolves
+# from the running program [FUN-017], and on Linux the C library's math is a
+# library of its own that nothing here would otherwise reference.
+FFI_LIBS="${FFI_LIBS:--lffi -lm}"
 
 [ -x "$ALGC" ] || { echo "no $ALGC -- run ./bootstrap/build.sh first" >&2; exit 1; }
 

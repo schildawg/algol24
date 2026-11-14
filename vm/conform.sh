@@ -80,7 +80,7 @@ ALGC="$ALGC" CC="$CC" CFLAGS="$CFLAGS" ./vm/build.sh "$WORK/algvm" > "$WORK/buil
 # nor leaves an --ffi algc -- one of those fails 0174, 0210 and 0225 under the main
 # conform.sh, which is a trap worth not setting.
 # shellcheck disable=SC2086
-$CC $CFLAGS -DALG_FFI -o "$WORK/algc-ffi" bootstrap/*.c -lffi 2>"$WORK/ffi.log" \
+$CC $CFLAGS -DALG_FFI -o "$WORK/algc-ffi" bootstrap/*.c -lffi -lm 2>"$WORK/ffi.log" \
     || { cat "$WORK/ffi.log"; echo "cannot build an --ffi algc to compare against" >&2; exit 1; }
 
 PASS=0; REFUSED=0; DIVERGED=0; SKIPPED=0; FOREIGN=0

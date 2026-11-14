@@ -154,8 +154,16 @@ reproduces it. `spec/HISTORY.md` holds how the language arrived.
 
 ## Status
 
-**v0.4.0.** The language is **stable, not closed**: it changes only on measured
+**v0.4.1.** The language is **stable, not closed**: it changes only on measured
 demand from a project using it, and the measurement goes in the proposal.
+
+v0.4.1 is **Windows and Linux**, and the language gained nothing. A real
+session on each found what no harness here could: three processors that agreed
+on paper disagreed on the order operands are evaluated in, because the C back
+end left that to the C compiler; every path through the runtime decoded by the
+ANSI code page rather than as the UTF-8 the language promises; a `setjmp` that
+unwound and crashed one raise in five; and a build script that could not
+finish on Linux at all. The twelve gates now run on all three platforms.
 
 v0.2.0 is a **third processor**. `algvm` is a bytecode machine that runs the
 same language the interpreter and the compiled back end do — 6.9× the
