@@ -77,7 +77,7 @@ ALGC="$ALGC" CC="$CC" CFLAGS="$CFLAGS" ./vm/build.sh "$WORK/algvm" > "$WORK/buil
 # the fixture names itself: nothing but a no-foreign build prints that line.
 #
 # Built from the seed rather than reusing $ALGC, so this harness neither needs
-# nor leaves an --ffi algc -- one of those fails 0174 and DEF-37 under the main
+# nor leaves an --ffi algc -- one of those fails 0174, 0210 and 0225 under the main
 # conform.sh, which is a trap worth not setting.
 # shellcheck disable=SC2086
 $CC $CFLAGS -DALG_FFI -o "$WORK/algc-ffi" bootstrap/*.c -lffi 2>"$WORK/ffi.log" \

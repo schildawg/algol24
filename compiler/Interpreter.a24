@@ -92,6 +92,24 @@ begin
     Exit Line;
 end
 
+/// A guest List as the host sequence the runtime reads, or the value as it is.
+///
+/// The interpreter's List is an ObjCollection holding its elements in Items;
+/// the runtime's foreign call reads a host sequence. An `external` declaration
+/// already arrives with one, so only a direct call to `Foreign` needs this.
+/// Anything that is not a collection passes through, for the runtime to refuse
+/// in its own words.
+///
+/// # Satisfies
+///
+/// [RT-001]
+function HostSequence (Value : Any) : Any;
+begin
+    if Value is ObjCollection then Exit Value.Items;
+
+    Exit Value;
+end
+
 /// Renders a value as text.
 ///
 /// A class with a ToString () method decides how it prints, and algc did not
@@ -565,8 +583,16 @@ begin
                          Exit Nil;
                      end
 
-            'Foreign' : Exit Foreign (Arguments[0], Arguments[1], Arguments[2],
-                                      Arguments[3], Arguments[4]);
+            // ⚠️ The two lists are GUEST Lists here -- ObjCollections -- and
+            // the runtime reads a host sequence, so passing them through took
+            // a count from whatever field sat at that offset (DEF-37).  On
+            // macOS that happened to exceed eight and be refused; on Windows
+            // it moved with ASLR, so the same program answered two ways.
+            // Unwrapped to their Items, which is the host sequence an
+            // `external` declaration already reaches the runtime with.
+            'Foreign' : Exit Foreign (Arguments[0], Arguments[1],
+                                      HostSequence (Arguments[2]),
+                                      Arguments[3], HostSequence (Arguments[4]));
 
             'Succ' : Exit Succ (Arguments[0]);
             'Pred' : Exit Pred (Arguments[0]);

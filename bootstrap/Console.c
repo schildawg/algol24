@@ -93,6 +93,7 @@ static Value m_console_repeat_2_char_integer(Value v_this, Value *args, int32_t 
 
 static Value m_console_header_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3, q_4;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -104,7 +105,7 @@ static Value m_console_header_1_string(Value v_this, Value *args, int32_t count)
     (void)v_width;
     alg_root(&v_width, 1);
     alg_hold_top = rh_190;
-    (void)((v_width = alg_hold(alg_subtract(alg_hold(alg_subtract(alg_hold(alg_text_length((alg_declared(d_bar, "BAR"), v_bar))), alg_int(4))), alg_hold(alg_text_length(v_name))))));
+    (void)((v_width = alg_hold((q_0 = alg_hold(alg_subtract(alg_hold(alg_text_length((alg_declared(d_bar, "BAR"), v_bar))), alg_int(4))), alg_subtract(q_0, alg_hold(alg_text_length(v_name)))))));
     alg_hold_top = rh_190;
     (void)((v_width = alg_hold(alg_div_int(v_width, alg_int(2)))));
     alg_hold_top = rh_190;
@@ -112,7 +113,7 @@ static Value m_console_header_1_string(Value v_this, Value *args, int32_t count)
         (void)((v_width = alg_int(0)));
     }
     alg_hold_top = rh_190;
-    (void)(alg_hold(alg_invoke(v_this, "Info", (Value[]){alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(45), v_width}, 2)), alg_literal("[ "))), (alg_declared(d_ansiVcyan, "ANSI_CYAN"), v_ansiVcyan))), v_name)), (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset))), alg_literal(" ]"))), alg_hold(alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(45), v_width}, 2))))}, 1)));
+    (void)(alg_hold(alg_invoke(v_this, "Info", (Value[]){alg_hold((q_4 = alg_hold(alg_add(alg_hold((q_3 = alg_hold((q_2 = alg_hold((q_1 = alg_hold(alg_add(alg_hold(alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(45), v_width}, 2)), alg_literal("[ "))), alg_add(q_1, (alg_declared(d_ansiVcyan, "ANSI_CYAN"), v_ansiVcyan)))), alg_add(q_2, v_name))), alg_add(q_3, (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset)))), alg_literal(" ]"))), alg_add(q_4, alg_hold(alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(45), v_width}, 2)))))}, 1)));
     alg_hold_top = rh_190;
     Value ret_2 = alg_nil();
     alg_root_top = rt_base;
@@ -121,6 +122,7 @@ static Value m_console_header_1_string(Value v_this, Value *args, int32_t count)
 
 static Value m_console_subheader_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -128,7 +130,7 @@ static Value m_console_subheader_1_string(Value v_this, Value *args, int32_t cou
     (void)v_name;
     alg_root(&v_name, 1);
     int32_t rh_191 = alg_hold_top;
-    (void)(alg_hold(alg_invoke(v_this, "Info", (Value[]){alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_literal("< "), (alg_declared(d_ansiVcyan, "ANSI_CYAN"), v_ansiVcyan))), v_name)), (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset))), alg_literal(" >")))}, 1)));
+    (void)(alg_hold(alg_invoke(v_this, "Info", (Value[]){alg_hold(alg_add(alg_hold((q_1 = alg_hold((q_0 = alg_hold(alg_add(alg_literal("< "), (alg_declared(d_ansiVcyan, "ANSI_CYAN"), v_ansiVcyan))), alg_add(q_0, v_name))), alg_add(q_1, (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset)))), alg_literal(" >")))}, 1)));
     alg_hold_top = rh_191;
     Value ret_3 = alg_nil();
     alg_root_top = rt_base;
@@ -169,6 +171,7 @@ static Value m_console_warn_1_string(Value v_this, Value *args, int32_t count) {
 
 static Value m_console_success_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -180,13 +183,13 @@ static Value m_console_success_1_string(Value v_this, Value *args, int32_t count
     (void)v_width;
     alg_root(&v_width, 1);
     alg_hold_top = rh_194;
-    (void)((v_width = alg_hold(alg_subtract(alg_hold(alg_subtract(alg_hold(alg_text_length((alg_declared(d_bar, "BAR"), v_bar))), alg_int(10))), alg_hold(alg_text_length(v_name))))));
+    (void)((v_width = alg_hold((q_0 = alg_hold(alg_subtract(alg_hold(alg_text_length((alg_declared(d_bar, "BAR"), v_bar))), alg_int(10))), alg_subtract(q_0, alg_hold(alg_text_length(v_name)))))));
     alg_hold_top = rh_194;
     if (alg_truthy(alg_hold(alg_less(v_width, alg_int(0))))) {
         (void)((v_width = alg_int(0)));
     }
     alg_hold_top = rh_194;
-    (void)(alg_hold(alg_invoke(v_this, "Info", (Value[]){alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(v_name, alg_char_value(32))), alg_hold(alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(46), v_width}, 2)))), (alg_declared(d_ansiVgreen, "ANSI_GREEN"), v_ansiVgreen))), alg_literal(" SUCCESS"))), (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset)))}, 1)));
+    (void)(alg_hold(alg_invoke(v_this, "Info", (Value[]){alg_hold((q_3 = alg_hold(alg_add(alg_hold((q_2 = alg_hold((q_1 = alg_hold(alg_add(v_name, alg_char_value(32))), alg_add(q_1, alg_hold(alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(46), v_width}, 2))))), alg_add(q_2, (alg_declared(d_ansiVgreen, "ANSI_GREEN"), v_ansiVgreen)))), alg_literal(" SUCCESS"))), alg_add(q_3, (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset))))}, 1)));
     alg_hold_top = rh_194;
     Value ret_6 = alg_nil();
     alg_root_top = rt_base;
@@ -195,6 +198,7 @@ static Value m_console_success_1_string(Value v_this, Value *args, int32_t count
 
 static Value m_console_fail_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -206,13 +210,13 @@ static Value m_console_fail_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_width;
     alg_root(&v_width, 1);
     alg_hold_top = rh_195;
-    (void)((v_width = alg_hold(alg_subtract(alg_hold(alg_subtract(alg_hold(alg_text_length((alg_declared(d_bar, "BAR"), v_bar))), alg_int(10))), alg_hold(alg_text_length(v_name))))));
+    (void)((v_width = alg_hold((q_0 = alg_hold(alg_subtract(alg_hold(alg_text_length((alg_declared(d_bar, "BAR"), v_bar))), alg_int(10))), alg_subtract(q_0, alg_hold(alg_text_length(v_name)))))));
     alg_hold_top = rh_195;
     if (alg_truthy(alg_hold(alg_less(v_width, alg_int(0))))) {
         (void)((v_width = alg_int(0)));
     }
     alg_hold_top = rh_195;
-    (void)(alg_hold(alg_invoke(v_this, "Info", (Value[]){alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(v_name, alg_char_value(32))), alg_hold(alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(46), v_width}, 2)))), (alg_declared(d_ansiVred, "ANSI_RED"), v_ansiVred))), alg_literal(" FAILED"))), (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset)))}, 1)));
+    (void)(alg_hold(alg_invoke(v_this, "Info", (Value[]){alg_hold((q_3 = alg_hold(alg_add(alg_hold((q_2 = alg_hold((q_1 = alg_hold(alg_add(v_name, alg_char_value(32))), alg_add(q_1, alg_hold(alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(46), v_width}, 2))))), alg_add(q_2, (alg_declared(d_ansiVred, "ANSI_RED"), v_ansiVred)))), alg_literal(" FAILED"))), alg_add(q_3, (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset))))}, 1)));
     alg_hold_top = rh_195;
     Value ret_7 = alg_nil();
     alg_root_top = rt_base;
@@ -221,6 +225,7 @@ static Value m_console_fail_1_string(Value v_this, Value *args, int32_t count) {
 
 static Value m_console_debug_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -228,7 +233,7 @@ static Value m_console_debug_1_string(Value v_this, Value *args, int32_t count) 
     (void)v_text;
     alg_root(&v_text, 1);
     int32_t rh_196 = alg_hold_top;
-    (void)(alg_writeln(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add((alg_declared(d_ansiVwhite, "ANSI_WHITE"), v_ansiVwhite), alg_char_value(91))), (alg_declared(d_ansiVyellow, "ANSI_YELLOW"), v_ansiVyellow))), alg_literal("DEBUG"))), (alg_declared(d_ansiVwhite, "ANSI_WHITE"), v_ansiVwhite))), alg_literal("] "))), (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset))), v_text))));
+    (void)(alg_writeln(alg_hold((q_3 = alg_hold((q_2 = alg_hold(alg_add(alg_hold((q_1 = alg_hold(alg_add(alg_hold((q_0 = alg_hold(alg_add((alg_declared(d_ansiVwhite, "ANSI_WHITE"), v_ansiVwhite), alg_char_value(91))), alg_add(q_0, (alg_declared(d_ansiVyellow, "ANSI_YELLOW"), v_ansiVyellow)))), alg_literal("DEBUG"))), alg_add(q_1, (alg_declared(d_ansiVwhite, "ANSI_WHITE"), v_ansiVwhite)))), alg_literal("] "))), alg_add(q_2, (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset)))), alg_add(q_3, v_text)))));
     alg_hold_top = rh_196;
     Value ret_8 = alg_nil();
     alg_root_top = rt_base;
@@ -237,6 +242,7 @@ static Value m_console_debug_1_string(Value v_this, Value *args, int32_t count) 
 
 static Value m_console_error_2_token_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3, q_4, q_5, q_6, q_7, q_8, q_9, q_10, q_11, q_12, q_13;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -255,15 +261,15 @@ static Value m_console_error_2_token_string(Value v_this, Value *args, int32_t c
     (void)v_digits;
     alg_root(&v_digits, 1);
     alg_hold_top = rh_197;
-    (void)((v_text = alg_hold(alg_invoke(alg_singleton(k_sourcecode), "Get", (Value[]){alg_hold(alg_str(alg_hold(alg_property(v_where, "File")))), alg_hold(alg_property(v_where, "LineNumber"))}, 2))));
+    (void)((v_text = alg_hold((q_0 = alg_hold(alg_singleton(k_sourcecode)), q_1 = alg_hold(alg_str(alg_hold(alg_property(v_where, "File")))), alg_invoke(q_0, "Get", (Value[]){q_1, alg_hold(alg_property(v_where, "LineNumber"))}, 2)))));
     alg_hold_top = rh_197;
     (void)((v_digits = alg_hold(alg_text_length(alg_hold(alg_str(alg_hold(alg_property(v_where, "LineNumber"))))))));
     alg_hold_top = rh_197;
-    (void)(alg_writeln(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add((alg_declared(d_errorVtag, "ERROR_TAG"), v_errorVtag), alg_hold(alg_invoke(alg_singleton(k_sourcecode), "Named", (Value[]){alg_hold(alg_str(alg_hold(alg_property(v_where, "File"))))}, 1)))), alg_literal(": "))), v_message))));
+    (void)(alg_writeln(alg_hold((q_4 = alg_hold(alg_add(alg_hold((q_3 = alg_hold((alg_declared(d_errorVtag, "ERROR_TAG"), v_errorVtag)), alg_add(q_3, alg_hold((q_2 = alg_hold(alg_singleton(k_sourcecode)), alg_invoke(q_2, "Named", (Value[]){alg_hold(alg_str(alg_hold(alg_property(v_where, "File"))))}, 1)))))), alg_literal(": "))), alg_add(q_4, v_message)))));
     alg_hold_top = rh_197;
-    (void)(alg_writeln(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add((alg_declared(d_errorVtag, "ERROR_TAG"), v_errorVtag), alg_hold(alg_str(alg_hold(alg_property(v_where, "LineNumber")))))), alg_literal(" | "))), v_text))));
+    (void)(alg_writeln(alg_hold((q_6 = alg_hold(alg_add(alg_hold((q_5 = alg_hold((alg_declared(d_errorVtag, "ERROR_TAG"), v_errorVtag)), alg_add(q_5, alg_hold(alg_str(alg_hold(alg_property(v_where, "LineNumber"))))))), alg_literal(" | "))), alg_add(q_6, v_text)))));
     alg_hold_top = rh_197;
-    (void)(alg_writeln(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add((alg_declared(d_ansiVwhite, "ANSI_WHITE"), v_ansiVwhite), alg_char_value(91))), (alg_declared(d_ansiVred, "ANSI_RED"), v_ansiVred))), alg_literal("ERROR"))), (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset))), alg_literal("] "))), alg_hold(alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(32), v_digits}, 2)))), alg_literal(" |"))), (alg_declared(d_ansiVred, "ANSI_RED"), v_ansiVred))), alg_hold(alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(32), alg_hold(alg_add(alg_hold(alg_property(v_where, "Offset")), alg_int(1)))}, 2)))), alg_hold(alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(94), alg_hold(alg_text_length(alg_hold(alg_property(v_where, "Lexeme"))))}, 2)))), (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset)))));
+    (void)(alg_writeln(alg_hold((q_13 = alg_hold((q_12 = alg_hold((q_11 = alg_hold((q_10 = alg_hold(alg_add(alg_hold((q_9 = alg_hold(alg_add(alg_hold((q_8 = alg_hold(alg_add(alg_hold((q_7 = alg_hold(alg_add((alg_declared(d_ansiVwhite, "ANSI_WHITE"), v_ansiVwhite), alg_char_value(91))), alg_add(q_7, (alg_declared(d_ansiVred, "ANSI_RED"), v_ansiVred)))), alg_literal("ERROR"))), alg_add(q_8, (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset)))), alg_literal("] "))), alg_add(q_9, alg_hold(alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(32), v_digits}, 2))))), alg_literal(" |"))), alg_add(q_10, (alg_declared(d_ansiVred, "ANSI_RED"), v_ansiVred)))), alg_add(q_11, alg_hold(alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(32), alg_hold(alg_add(alg_hold(alg_property(v_where, "Offset")), alg_int(1)))}, 2))))), alg_add(q_12, alg_hold(alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(94), alg_hold(alg_text_length(alg_hold(alg_property(v_where, "Lexeme"))))}, 2))))), alg_add(q_13, (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset))))));
     alg_hold_top = rh_197;
     Value ret_9 = alg_nil();
     alg_root_top = rt_base;
@@ -287,6 +293,7 @@ static Value *roots_Console[] = {
 };
 
 void init_Console(void) {
+    Value q_0, q_1, q_2, q_3, q_4, q_5, q_6, q_7, q_8;
     alg_roots(roots_Console, 13);
     k_console = alg_class("Console", alg_nil());
     alg_class_field(k_console, "Id", "String");
@@ -333,13 +340,13 @@ void init_Console(void) {
     v_ansiVwhite = alg_hold(alg_add((alg_declared(d_esc, "ESC"), v_esc), alg_literal("[37m")));
     d_ansiVwhite = true;
     alg_hold_top = rh_185;
-    v_infoVtag = alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add((alg_declared(d_ansiVwhite, "ANSI_WHITE"), v_ansiVwhite), alg_char_value(91))), (alg_declared(d_ansiVblue, "ANSI_BLUE"), v_ansiVblue))), alg_literal("INFO"))), (alg_declared(d_ansiVwhite, "ANSI_WHITE"), v_ansiVwhite))), alg_literal("] "))), (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset)));
+    v_infoVtag = alg_hold((q_2 = alg_hold(alg_add(alg_hold((q_1 = alg_hold(alg_add(alg_hold((q_0 = alg_hold(alg_add((alg_declared(d_ansiVwhite, "ANSI_WHITE"), v_ansiVwhite), alg_char_value(91))), alg_add(q_0, (alg_declared(d_ansiVblue, "ANSI_BLUE"), v_ansiVblue)))), alg_literal("INFO"))), alg_add(q_1, (alg_declared(d_ansiVwhite, "ANSI_WHITE"), v_ansiVwhite)))), alg_literal("] "))), alg_add(q_2, (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset))));
     d_infoVtag = true;
     alg_hold_top = rh_185;
-    v_errorVtag = alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add((alg_declared(d_ansiVwhite, "ANSI_WHITE"), v_ansiVwhite), alg_char_value(91))), (alg_declared(d_ansiVred, "ANSI_RED"), v_ansiVred))), alg_literal("ERROR"))), (alg_declared(d_ansiVwhite, "ANSI_WHITE"), v_ansiVwhite))), alg_literal("] "))), (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset)));
+    v_errorVtag = alg_hold((q_5 = alg_hold(alg_add(alg_hold((q_4 = alg_hold(alg_add(alg_hold((q_3 = alg_hold(alg_add((alg_declared(d_ansiVwhite, "ANSI_WHITE"), v_ansiVwhite), alg_char_value(91))), alg_add(q_3, (alg_declared(d_ansiVred, "ANSI_RED"), v_ansiVred)))), alg_literal("ERROR"))), alg_add(q_4, (alg_declared(d_ansiVwhite, "ANSI_WHITE"), v_ansiVwhite)))), alg_literal("] "))), alg_add(q_5, (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset))));
     d_errorVtag = true;
     alg_hold_top = rh_185;
-    v_warnVtag = alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add((alg_declared(d_ansiVwhite, "ANSI_WHITE"), v_ansiVwhite), alg_char_value(91))), (alg_declared(d_ansiVyellow, "ANSI_YELLOW"), v_ansiVyellow))), alg_literal("WARN"))), (alg_declared(d_ansiVwhite, "ANSI_WHITE"), v_ansiVwhite))), alg_literal("] "))), (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset)));
+    v_warnVtag = alg_hold((q_8 = alg_hold(alg_add(alg_hold((q_7 = alg_hold(alg_add(alg_hold((q_6 = alg_hold(alg_add((alg_declared(d_ansiVwhite, "ANSI_WHITE"), v_ansiVwhite), alg_char_value(91))), alg_add(q_6, (alg_declared(d_ansiVyellow, "ANSI_YELLOW"), v_ansiVyellow)))), alg_literal("WARN"))), alg_add(q_7, (alg_declared(d_ansiVwhite, "ANSI_WHITE"), v_ansiVwhite)))), alg_literal("] "))), alg_add(q_8, (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset))));
     d_warnVtag = true;
     alg_hold_top = rh_185;
     alg_hold_top = rh_185;

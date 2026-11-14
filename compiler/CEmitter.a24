@@ -166,6 +166,34 @@ var
     /// Empty at the top level, where there is no frame to leave.
     FrameRoots : String := '';
 
+    /// How many ordering temporaries the C function being written has used.
+    ///
+    /// Each is a `Value q_N` declared once at the top of that function, and
+    /// the count is saved and restored around a nested subprogram exactly as
+    /// Body is, since the nested one is a C function of its own.
+    OrderTemps     : Integer := 0;
+
+    /// The same count for the unit's top level, which `init_<Unit>()` holds.
+    ///
+    /// Kept apart from OrderTemps, because a top-level statement is written
+    /// into MainBody while a subprogram's body is being written into Body.
+    MainOrderTemps : Integer := 0;
+
+    /// The prefix the call being emitted must evaluate before itself.
+    ///
+    /// A field rather than a result, because VisitCall reaches its text down a
+    /// dozen paths; VisitCall saves it, lets whichever path is taken set it,
+    /// and wraps whatever text comes back.
+    CallPrefix     : String := '';
+
+    /// The last sequenced call whose own call answers void, as its whole text.
+    ///
+    /// VoidCall decides by how a text BEGINS, and a sequenced call begins with
+    /// its prefix -- so `(q_0 = ..., alg_writeln(...))` read as a value and was
+    /// held, which C refuses as an invalid use of a void expression.  Matched
+    /// whole, so a stale entry can never match some other text.
+    VoidSequenced  : String := '';
+
     /// Whole function bodies.
     Functions    : Buffer := Buffer();
 
@@ -1253,6 +1281,7 @@ begin
                 if Statement is ClassStmt or Statement is ObjectStmt then
                     OwnClasses.Add (FoldCase (Statement.Name.Lexeme));
             MainBody := Buffer();
+            MainOrderTemps := 0;
             Header := '';
             Target := 'main';
 
@@ -1460,10 +1489,16 @@ begin
                 var InitBody := MainBody;
                 MainBody := Buffer();
 
+                // main() is a C function apart from init_<Unit>(), so its
+                // temporaries are counted and declared apart.
+                var InitTemps := MainOrderTemps;
+                MainOrderTemps := 0;
+
                 if EmitTests then EmitTestRunner ();
 
-                MainBodyText := MainBody.Text;
+                MainBodyText := OrderTempDeclaration (MainOrderTemps) + MainBody.Text;
                 MainBody := InitBody;
+                MainOrderTemps := InitTemps;
             end
 
             Files.Put (Str (Unit.Name) + '.h', UnitHeader (Unit));
@@ -1526,6 +1561,7 @@ begin
         end
 
         Text := Text + 'void init_' + Str (Unit.Name) + '(void) {' + #10;
+        Text := Text + OrderTempDeclaration (MainOrderTemps);
 
         // Registered FIRST, so a collection during this unit's own
         // initialization can already see what it has set.
@@ -1697,6 +1733,9 @@ begin
 
         Target := 'body';
         Body := Buffer();
+
+        var EnclosingOrderTemps := OrderTemps;
+        OrderTemps := 0;
         Depth := 1;
 
         AtTopLevel := False;
@@ -1725,6 +1764,11 @@ begin
 
         var Written := Body.Text;
 
+        // Declared at the top of the C function, before anything that could
+        // jump past a declaration, and counted only now the body is written.
+        var OrderDeclaration := OrderTempDeclaration (OrderTemps);
+        OrderTemps := EnclosingOrderTemps;
+
         Target := EnclosingTarget;
         Body := EnclosingBody;
         Locals := EnclosingLocals;
@@ -1743,6 +1787,7 @@ begin
         Functions.Append ('Value ' + Symbol
                    + '(Value **cells, Value *args, int32_t count) {' + #10);
         Functions.Append ('    (void)cells; (void)args; (void)count;' + #10);
+        Functions.Append (OrderDeclaration);
         Functions.Append (Written);
         Functions.Append ('    return alg_nil();' + #10 + '}' + #10 + #10);
     end
@@ -2130,6 +2175,8 @@ begin
     /// text because that is where the decision has already been made.
     function VoidCall (Text : String) : Boolean;
     begin
+        if Text = VoidSequenced then Exit True;
+
         if Pos (Text, 'alg_writeln(')       = 0 then Exit True;
         if Pos (Text, 'alg_writeln_blank(') = 0 then Exit True;
         if Pos (Text, 'alg_write(')         = 0 then Exit True;
@@ -2155,6 +2202,154 @@ begin
         Exit not (TheExpr is LiteralExpr  or TheExpr is VariableExpr
                or TheExpr is ThisExpr     or TheExpr is IsExpr
                or TheExpr is GroupingExpr or TheExpr is AssignExpr);
+    end
+
+    /// Whether an operand is a constant, which no other operand can affect and
+    /// which affects none of them -- so its place in the order is immaterial.
+    ///
+    /// A cast is not, because it can raise, and which of two faults is
+    /// reported is part of what order decides.
+    function OrderConstant (TheExpr : Any) : Boolean;
+    begin
+        if Str (TheExpr.Cast) <> '' then Exit False;
+        if TheExpr is GroupingExpr then Exit OrderConstant (TheExpr.Expression);
+
+        Exit TheExpr is LiteralExpr;
+    end
+
+    /// Whether evaluating an operand can change anything another operand
+    /// could see: call, assign or raise.
+    ///
+    /// A plain read of a variable or of `this` cannot -- though a call beside
+    /// it can change what the read finds, which is why a read still goes into
+    /// a temporary when something impure follows it.
+    function OrderPure (TheExpr : Any) : Boolean;
+    begin
+        if Str (TheExpr.Cast) <> '' then Exit False;
+        if TheExpr is GroupingExpr then Exit OrderPure (TheExpr.Expression);
+
+        Exit TheExpr is LiteralExpr or TheExpr is VariableExpr
+                                    or TheExpr is ThisExpr;
+    end
+
+    /// A fresh ordering temporary in the C function being written.
+    function OrderTemp () : String;
+    begin
+        if Target = 'body' then
+        begin
+            OrderTemps := OrderTemps + 1;
+            Exit 'q_' + Str (OrderTemps - 1);
+        end
+
+        MainOrderTemps := MainOrderTemps + 1;
+        Exit 'q_' + Str (MainOrderTemps - 1);
+    end
+
+    /// The declaration of a C function's ordering temporaries, or '' for none.
+    function OrderTempDeclaration (Count : Integer) : String;
+    begin
+        if Count = 0 then Exit '';
+
+        var Names := '';
+        for var I := 0; I < Count; I := I + 1 do
+        begin
+            if I > 0 then Names := Names + ', ';
+
+            Names := Names + 'q_' + Str (I);
+        end
+
+        Exit '    Value ' + Names + ';' + #10;
+    end
+
+    /// Operands made to evaluate left to right, which C does not promise.
+    ///
+    /// The emitted C passes operands as a function's arguments, and C leaves
+    /// the order of those unspecified: clang on macOS went left to right and
+    /// gcc on Windows right to left, so `G.ReadLn () + ', ' + G.ReadLn ()` read
+    /// the two lines in opposite orders on the two.  The interpreter and the
+    /// machine both go left to right, and so the language does.
+    ///
+    /// Answers a List: first the prefix to put before the operation -- '' when
+    /// order cannot matter -- then the text for each operand, a temporary
+    /// standing in for every operand the prefix evaluated.  Order matters only
+    /// where two operands are not constants and at least one is impure; then
+    /// every operand but the LAST non-constant is evaluated into a temporary by
+    /// a comma expression, which C does sequence, and the last is left in
+    /// place, everything it could have overtaken having already run.
+    ///
+    /// A hoisted operand is HELD if Evaluate did not already hold it.  A read
+    /// of `X` hoisted ahead of a call that reassigns `X` is otherwise only in
+    /// the temporary, which the collector cannot see.
+    function InOrder (Operands : List, Texts : List) : List;
+    var
+        Answer : List;
+
+    begin
+        Answer := List();
+        Answer.Add ('');
+
+        var Live   := 0;
+        var Impure := 0;
+        var Last   := 0 - 1;
+
+        for var I := 0; I < Operands.Length; I := I + 1 do
+        begin
+            if not OrderConstant (Operands[I]) then
+            begin
+                Live := Live + 1;
+                Last := I;
+            end
+
+            if not OrderPure (Operands[I]) then Impure := Impure + 1;
+        end
+
+        if Live < 2 or Impure = 0 then
+        begin
+            for var Text in Texts do Answer.Add (Str (Text));
+
+            Exit Answer;
+        end
+
+        var Prefix := '';
+
+        for var I := 0; I < Operands.Length; I := I + 1 do
+        begin
+            if I < Last and not OrderConstant (Operands[I]) then
+            begin
+                var Held := Str (Texts[I]);
+                if not NeedsHold (Operands[I]) then Held := 'alg_hold(' + Held + ')';
+
+                var Temp := OrderTemp ();
+                Prefix := Prefix + Temp + ' = ' + Held + ', ';
+                Answer.Add (Temp);
+            end
+            else
+                Answer.Add (Str (Texts[I]));
+        end
+
+        Answer[0] := Prefix;
+
+        Exit Answer;
+    end
+
+    /// The texts InOrder answered, without its prefix.
+    function OrderedTexts (Order : List) : List;
+    var
+        Texts : List;
+
+    begin
+        Texts := List();
+        for var I := 1; I < Order.Length; I := I + 1 do Texts.Add (Order[I]);
+
+        Exit Texts;
+    end
+
+    /// An operation's text with InOrder's prefix evaluated ahead of it.
+    function Sequenced (Order : List, Text : String) : String;
+    begin
+        if Str (Order[0]) = '' then Exit Text;
+
+        Exit '(' + Str (Order[0]) + Text + ')';
     end
 
     /// Whether a statement list declares anything the shadow stack must hold.
@@ -2448,6 +2643,9 @@ begin
 
         Target := 'body';
         Body := Buffer();
+
+        var EnclosingOrderTemps := OrderTemps;
+        OrderTemps := 0;
         Depth := 1;
 
         var EnclosingVolatiles := Volatiles;
@@ -2523,6 +2721,11 @@ begin
 
         var Written := Body.Text;
 
+        // Declared at the top of the C function, before anything that could
+        // jump past a declaration, and counted only now the body is written.
+        var OrderDeclaration := OrderTempDeclaration (OrderTemps);
+        OrderTemps := EnclosingOrderTemps;
+
         Target := EnclosingTarget;
         Body := EnclosingBody;
 
@@ -2530,6 +2733,7 @@ begin
                    + '(Value v_this, Value *args, int32_t count) {' + #10);
 
         Functions.Append ('    (void)v_this; (void)args; (void)count;' + #10);
+        Functions.Append (OrderDeclaration);
         Functions.Append (Written);
         Functions.Append ('}' + #10 + #10);
 
@@ -3168,6 +3372,9 @@ begin
 
         Target := 'body';
         Body := Buffer();
+
+        var EnclosingOrderTemps := OrderTemps;
+        OrderTemps := 0;
         Depth := 1;
 
         if not Nested then
@@ -3226,6 +3433,11 @@ begin
 
         var Written := Body.Text;
 
+        // Declared at the top of the C function, before anything that could
+        // jump past a declaration, and counted only now the body is written.
+        var OrderDeclaration := OrderTempDeclaration (OrderTemps);
+        OrderTemps := EnclosingOrderTemps;
+
         Target := EnclosingTarget;
         Body := EnclosingBody;
 
@@ -3237,6 +3449,7 @@ begin
         Functions.Append (Prototype (TheStmt) + ' {' + #10);
 
         Functions.Append ('    (void)cells; (void)args; (void)count;' + #10);
+        Functions.Append (OrderDeclaration);
         Functions.Append (Written);
         Functions.Append ('}' + #10 + #10);
 
@@ -3863,7 +4076,9 @@ begin
 
         if Call = '' then Unsupported ('Binary ''' + Str (TheExpr.Op.Lexeme) + '''');
 
-        Exit Call + '(' + Left + ', ' + Right + ')';
+        var Order := InOrder ([TheExpr.Left, TheExpr.Right], [Left, Right]);
+
+        Exit Sequenced (Order, Call + '(' + Str (Order[1]) + ', ' + Str (Order[2]) + ')');
     end
 
     /// Gets the argument counts a built-in accepts.
@@ -4522,7 +4737,44 @@ begin
 
     /// Emits a call: a built-in, a construction, a unit call, a method, or a
     /// plain subprogram.
+    ///
+    /// The callee, then each argument, left to right -- the interpreter's
+    /// order.  CallText reaches the text down whichever path the call takes
+    /// and leaves InOrder's prefix in CallPrefix; this wraps the one around
+    /// the other, so no path can forget to.
     function VisitCall (TheExpr : CallExpr) : String;
+    begin
+        var Enclosing := CallPrefix;
+        CallPrefix := '';
+
+        var Text   := CallText (TheExpr);
+        var Prefix := CallPrefix;
+
+        CallPrefix := Enclosing;
+
+        if Prefix = '' then Exit Text;
+
+        var Wrapped := '(' + Prefix + Text + ')';
+        if VoidCall (Text) then VoidSequenced := Wrapped;
+
+        Exit Wrapped;
+    end
+
+    /// Puts a call's operands in order, and answers their texts.
+    ///
+    /// Records the prefix for VisitCall, which is why every path below goes
+    /// through here exactly once.
+    function OrderedCall (Operands : List, Texts : List) : List;
+    begin
+        var Order := InOrder (Operands, Texts);
+
+        CallPrefix := Str (Order[0]);
+
+        Exit OrderedTexts (Order);
+    end
+
+    /// The text of a call, for VisitCall to sequence.
+    function CallText (TheExpr : CallExpr) : String;
     var
         Arguments : List;
         Joined    : String;
@@ -4532,9 +4784,11 @@ begin
         begin
             if CurrentClass = '' then Unsupported ('''super'' outside a class');
 
-            var Emitted := List();
+            var Raw := List();
             for var Argument in TheExpr.Arguments do
-                Emitted.Add (Evaluate (Argument));
+                Raw.Add (Evaluate (Argument));
+
+            var Emitted := OrderedCall (TheExpr.Arguments, Raw);
 
             Exit 'alg_invoke_from(' + ClassHandle (CurrentClass) + ', ' + ThisRef () + ', '
                + QuoteC (Str (TheExpr.Callee.Method.Lexeme)) + ', '
@@ -4543,9 +4797,11 @@ begin
 
         if TheExpr.Callee is GetExpr and TheExpr.Callee.Unit <> '' then
         begin
-            var Emitted := List();
+            var Raw := List();
             for var TheArgument in TheExpr.Arguments do
-                Emitted.Add (Evaluate (TheArgument));
+                Raw.Add (Evaluate (TheArgument));
+
+            var Emitted := OrderedCall (TheExpr.Arguments, Raw);
 
             var Text := '';
             for var I := 0; I < Emitted.Length; I := I + 1 do
@@ -4561,11 +4817,25 @@ begin
 
         if TheExpr.Callee is GetExpr then
         begin
-            var Receiver := Evaluate (TheExpr.Callee.Obj);
+            // The receiver is the first operand: it is evaluated before any
+            // argument, as the interpreter evaluates the callee first.
+            var Operands := List();
+            var Raw      := List();
+
+            Operands.Add (TheExpr.Callee.Obj);
+            Raw.Add (Evaluate (TheExpr.Callee.Obj));
+
+            for var EachArgument in TheExpr.Arguments do
+            begin
+                Operands.Add (EachArgument);
+                Raw.Add (Evaluate (EachArgument));
+            end
+
+            var Ordered  := OrderedCall (Operands, Raw);
+            var Receiver := Str (Ordered[0]);
 
             var Emitted := List();
-            for var EachArgument in TheExpr.Arguments do
-                Emitted.Add (Evaluate (EachArgument));
+            for var I := 1; I < Ordered.Length; I := I + 1 do Emitted.Add (Ordered[I]);
 
             if Str (TheExpr.Callee.Extension) <> '' then
                 Exit InvokingOr (Receiver, Str (TheExpr.Callee.Name.Lexeme), Emitted,
@@ -4577,16 +4847,34 @@ begin
 
         if not (TheExpr.Callee is VariableExpr) then
         begin
-            var Emitted := List();
-            for var Item in TheExpr.Arguments do
-                Emitted.Add (Evaluate (Item));
+            // The callee FIRST, as the interpreter has it.  This emitted the
+            // arguments before the callee, which only mattered once order
+            // was being kept at all.
+            var Operands := List();
+            var Raw      := List();
 
-            Exit Calling (Evaluate (TheExpr.Callee), Emitted, TheExpr.ArgumentNames);
+            Operands.Add (TheExpr.Callee);
+            Raw.Add (Evaluate (TheExpr.Callee));
+
+            for var Item in TheExpr.Arguments do
+            begin
+                Operands.Add (Item);
+                Raw.Add (Evaluate (Item));
+            end
+
+            var Ordered := OrderedCall (Operands, Raw);
+
+            var Emitted := List();
+            for var I := 1; I < Ordered.Length; I := I + 1 do Emitted.Add (Ordered[I]);
+
+            Exit Calling (Str (Ordered[0]), Emitted, TheExpr.ArgumentNames);
         end
 
-        Arguments := List();
+        var Raw := List();
         for var I := 0; I < TheExpr.Arguments.Length; I := I + 1 do
-            Arguments.Add (Evaluate (TheExpr.Arguments[I]));
+            Raw.Add (Evaluate (TheExpr.Arguments[I]));
+
+        Arguments := OrderedCall (TheExpr.Arguments, Raw);
 
         Joined := '';
         for var I := 0; I < Arguments.Length; I := I + 1 do
@@ -4786,23 +5074,45 @@ begin
             Exit ComputedCollection (TheExpr);
         end
 
+        // Every element in source order -- a Map's key before its value --
+        // and then one InOrder over all of them, since the nesting below
+        // would otherwise leave C to choose.
+        var Operands := List();
+        var Texts    := List();
+
+        for var I := 0; I < TheExpr.Values.Length; I := I + 1 do
+        begin
+            if TheExpr.IsMap then
+            begin
+                var Key := Evaluate (TheExpr.Keys[I]);
+                Operands.Add (TheExpr.Keys[I]);
+                Texts.Add (Key);
+            end
+
+            var Element := Evaluate (TheExpr.Values[I]);
+            Operands.Add (TheExpr.Values[I]);
+            Texts.Add (Element);
+        end
+
+        var Order := InOrder (Operands, Texts);
+
         if TheExpr.IsMap then
         begin
             Built := 'alg_map()';
 
             for var I := 0; I < TheExpr.Keys.Length; I := I + 1 do
-                Built := 'alg_map_keep(' + Built + ', ' + Evaluate (TheExpr.Keys[I])
-                       + ', ' + Evaluate (TheExpr.Values[I]) + ')';
+                Built := 'alg_map_keep(' + Built + ', ' + Str (Order[I * 2 + 1])
+                       + ', ' + Str (Order[I * 2 + 2]) + ')';
 
-            Exit Built;
+            Exit Sequenced (Order, Built);
         end
 
         Built := 'alg_list()';
 
-        for var Value in TheExpr.Values do
-            Built := 'alg_list_keep(' + Built + ', ' + Evaluate (Value) + ')';
+        for var I := 0; I < TheExpr.Values.Length; I := I + 1 do
+            Built := 'alg_list_keep(' + Built + ', ' + Str (Order[I + 1]) + ')';
 
-        Exit Built;
+        Exit Sequenced (Order, Built);
     end
 
     /// Emits a large CONSTANT literal as a function instead of an expression.
@@ -4864,13 +5174,24 @@ begin
 
         Joined := '';
 
-        var Emitted := List();
+        var Raw      := List();
+        var Operands := List();
         for var I := 0; I < TheExpr.Values.Length; I := I + 1 do
         begin
-            if TheExpr.IsMap then Emitted.Add (Evaluate (TheExpr.Keys[I]));
+            if TheExpr.IsMap then
+            begin
+                Raw.Add (Evaluate (TheExpr.Keys[I]));
+                Operands.Add (TheExpr.Keys[I]);
+            end
 
-            Emitted.Add (Evaluate (TheExpr.Values[I]));
+            Raw.Add (Evaluate (TheExpr.Values[I]));
+            Operands.Add (TheExpr.Values[I]);
         end
+
+        // A compound literal's initializers are as unordered as a call's
+        // arguments [C11 6.7.9], so the elements go through InOrder too.
+        var Order   := InOrder (Operands, Raw);
+        var Emitted := OrderedTexts (Order);
 
         for var I := 0; I < Emitted.Length; I := I + 1 do
         begin
@@ -4900,21 +5221,40 @@ begin
 
         Functions.Append ('    return it;' + #10 + '}' + #10 + #10);
 
-        Exit Symbol + '((Value[]){' + Joined + '})';
+        Exit Sequenced (Order, Symbol + '((Value[]){' + Joined + '})');
     end
 
     /// Emits 'A[I]', including a class's own Get.
     function VisitSubscriptExpr (TheExpr : SubscriptExpr) : String;
     begin
-        Exit 'alg_subscript_get(' + Evaluate (TheExpr.Obj) + ', '
-           + Evaluate (TheExpr.Index) + ')';
+        // ⚠️ One Evaluate per statement, never two in one expression: this
+        // file is compiled by the very back end being fixed, and two calls in
+        // one expression are the operands whose order C does not promise --
+        // which would number the temporaries differently on two platforms.
+        var Obj   := Evaluate (TheExpr.Obj);
+        var Index := Evaluate (TheExpr.Index);
+
+        var Order := InOrder ([TheExpr.Obj, TheExpr.Index], [Obj, Index]);
+
+        Exit Sequenced (Order, 'alg_subscript_get(' + Str (Order[1]) + ', '
+                             + Str (Order[2]) + ')');
     end
 
     /// Emits 'A[I] := V', including a class's own Put.
+    ///
+    /// The receiver, then the index, then the value -- the interpreter's order,
+    /// which InOrder keeps.
     function VisitSetSubscriptExpr (TheExpr : SetSubscriptExpr) : String;
     begin
-        Exit 'alg_subscript_set(' + Evaluate (TheExpr.Obj) + ', '
-           + Evaluate (TheExpr.Index) + ', ' + Evaluate (TheExpr.Value) + ')';
+        var Obj   := Evaluate (TheExpr.Obj);
+        var Index := Evaluate (TheExpr.Index);
+        var Value := Evaluate (TheExpr.Value);
+
+        var Order := InOrder ([TheExpr.Obj, TheExpr.Index, TheExpr.Value],
+                              [Obj, Index, Value]);
+
+        Exit Sequenced (Order, 'alg_subscript_set(' + Str (Order[1]) + ', '
+                             + Str (Order[2]) + ', ' + Str (Order[3]) + ')');
     end
 
     /// Emits a name read through a unit qualifier.
@@ -4984,10 +5324,14 @@ begin
             Unsupported ('An assignment to ''' + Unit + '.' + Name + '''');
         end
 
-        Exit 'alg_set_property(' + Evaluate (TheExpr.Obj) + ', '
+        var Obj   := Evaluate (TheExpr.Obj);
+        var Value := Evaluate (TheExpr.Value);
+
+        var Order := InOrder ([TheExpr.Obj, TheExpr.Value], [Obj, Value]);
+
+        Exit Sequenced (Order, 'alg_set_property(' + Str (Order[1]) + ', '
            + QuoteC (Str (TheExpr.Name.Lexeme)) + ', '
-           + BoundValue (TheExpr.Declared, Evaluate (TheExpr.Value),
-                         TheExpr.Actual) + ')';
+           + BoundValue (TheExpr.Declared, Str (Order[2]), TheExpr.Actual) + ')');
     end
 
     /// Emits 'super.M' as a method bound to the receiver, found from the

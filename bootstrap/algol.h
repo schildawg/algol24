@@ -54,6 +54,19 @@
  || (defined(__GLIBC__) && (defined(__USE_MISC) || defined(__USE_XOPEN)))
 #define ALG_SETJMP(buf)       _setjmp(buf)
 #define ALG_LONGJMP(buf, val) _longjmp(buf, val)
+#elif defined(__MINGW32__) && defined(__x86_64__)
+/* ⚠️ mingw-w64's PLAIN setjmp UNWINDS, and that crashed one raise in five.
+   <setjmp.h> spells setjmp(b) as _setjmp(b, __builtin_frame_address(0)), and
+   a non-null frame makes msvcrt's longjmp walk the stack through RtlUnwind
+   rather than restore registers.  At -O2 that walk faulted inside
+   RtlVirtualUnwind2 on 10 of 50 runs of conformance/0155 -- intermittent
+   because ASLR moves what it trips over, absent at -O0, and absent under gdb,
+   which turns ASLR off.  A NULL frame is the non-unwinding form, the one the
+   header itself picks under __USE_MINGW_SETJMP_NON_SEH: exactly what
+   _setjmp/_longjmp mean on the branch above.  Nothing here relies on the
+   unwind -- no C++ frames, no __try -- so there is nothing it was buying. */
+#define ALG_SETJMP(buf)       _setjmp(buf, NULL)
+#define ALG_LONGJMP(buf, val) longjmp(buf, val)
 #else
 #define ALG_SETJMP(buf)       setjmp(buf)
 #define ALG_LONGJMP(buf, val) longjmp(buf, val)

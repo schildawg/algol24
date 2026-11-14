@@ -12010,7 +12010,39 @@ than `3`. `WriteLn ()` is the newline on its own, which is the same rule and not
 a second form: rendering no values gives the empty string.
 
     conformance  0145-a-builtin-with-the-wrong-arity.a24
-    defect       DEF-37-foreign-misreads-an-interpreted-list.a24
+    conformance  0225-foreign-takes-the-lists-a-program-built.a24
+
+##### conformance/0225-foreign-takes-the-lists-a-program-built.a24
+
+```algol24
+// Foreign is a built-in, so a program may call it directly and hand it Lists
+// it built itself.  Those reach the foreign call as the Lists they are: one
+// argument here, under every processor, in every run.
+var Types := ['String'];
+var Args  := ['abc'];
+
+try
+    WriteLn (Foreign ('strlen', '', Types, 'Integer', Args));
+except
+    on e : String do WriteLn (e);
+end
+
+// An external declaration reaches the same call by another road, and the two
+// must answer alike -- here, as a build without foreign calls must [INI-008].
+function TextLength (S : String) : Integer; external 'strlen';
+
+try
+    WriteLn (TextLength ('abc'));
+except
+    on e : String do WriteLn (e);
+end
+```
+
+```console
+$ algc conformance/0225-foreign-takes-the-lists-a-program-built.a24
+Foreign calls are not available in this build: 'strlen' cannot be reached.
+Foreign calls are not available in this build: 'strlen' cannot be reached.
+```
 
 ##### conformance/0159-write-takes-any-number-of-values.a24
 
@@ -12924,6 +12956,12 @@ them answers a status code to be checked or ignored.
 **`GetDir` takes nothing.** Turbo Pascal's selects a drive, and this language
 runs where there are none; an argument that could never change the answer would
 only read as though it might.
+
+**`GetDir` separates with `/` on every host**, Windows included, where it
+answers `C:/work/here` rather than the host's `C:\work\here`. A program joins a
+name on with `GetDir () + '/' + Name`, and that has to produce one path in one
+spelling, not two separators that compare unequal to a path the program built
+itself. Every Windows call a program reaches accepts `/`, so nothing is lost.
 
 **`Entries` answers a name, never a path.** Each element is the entry's own
 name as the directory records it, so a program wanting a path joins it to the

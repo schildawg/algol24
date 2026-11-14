@@ -180,7 +180,7 @@ esac
 # find a library installed in the prefix, on any of the three platforms.
 #
 # ⚠️ IT BUILDS ITS OWN --ffi algc AND NEVER USES bootstrap/algc, because one of
-# those fails 0174 and DEF-37 under the main corpus -- the trap vm/conform.sh
+# those fails 0174, 0210 and 0225 under the main corpus -- the trap vm/conform.sh
 # avoids the same way.
 #
 # ⚠️ SKIPPED RATHER THAN FAILED where libffi or a shared library cannot be

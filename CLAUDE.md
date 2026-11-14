@@ -762,9 +762,9 @@ arity warning would have diverged every case with a wrong-count call in it,
   cost `is Pointer`. A
   type missing from that chain cannot be refused, only mis-answered.
 
-  ⚠️ **`bootstrap/algc` built `--ffi` FAILS two conformance cases**, and
-  rightly: 0174 and DEF-37 record what a build *without* libffi says. Rebuild
-  plainly before trusting `conform.sh` — two failures appeared that way and
+  ⚠️ **`bootstrap/algc` built `--ffi` FAILS the conformance cases that**
+  **record a build without libffi**, rightly: 0174, 0210 and 0225. Rebuild
+  plainly before trusting `conform.sh` — failures like these appeared that way and
   were the build, not the code. `vm/conform.sh` builds its own `--ffi` algc in
   its work directory for exactly this reason, so running it leaves no trap.
 
