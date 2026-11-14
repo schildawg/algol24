@@ -30,8 +30,8 @@ Read a citation as a pointer to check, never as a checked fact.
 
 ## How to read an entry
 
-Each entry has the same six sections, in this order. A section with nothing to
-say is omitted rather than filled with "none".
+Each entry has the same seven sections, in this order. A section with nothing
+to say is omitted rather than filled with "none".
 
 **Encoding** — the bytes, in order, inside a fence. The **first bracketed row
 is read by `vm/reference.sh`**: its first bracket is the opcode's number in
@@ -70,6 +70,36 @@ and `pushes` separately say what the handler is written to mean, and a reader
 should trust their difference further than either alone.
 
 **Operation** — what it does, in the fewest words that are still true.
+
+**Example** — **one** per opcode: a program, and the window of
+`algvm --list` output where that instruction appears, exactly as the
+disassembler prints it. The program is a whole one and not a fragment, so a
+reader can paste it into a file and see the same bytes — which is also what
+lets a script check it.
+
+⚠️ **THE LISTING IS THE MACHINE'S OWN OUTPUT AND IS HELD TO IT.**
+`./vm/reference.sh` writes each example's program to a file, runs
+`algvm --list` over it, and requires the quoted window to appear in what comes
+back, contiguously and in order. So an example cannot drift from the emitter
+the way a hand-copied disassembly would: a change to what the back end emits
+turns this file red rather than leaving eighty quiet fictions behind.
+`./vm/reference.sh --examples` rewrites every window from live output, keeping
+each one's size and position, which is how that red is answered.
+
+⚠️ **FOUR ENTRIES ARE EXEMPT AND SAY SO**, because the only program that
+reaches them declares three hundred globals and will not fit in an entry:
+`OP_LONG` and the three long global forms. Each carries a comment of the shape
+`<!-- reference.sh: example-not-run OP_LONG -->` beside the reason, so the
+exemption sits with its cause and the checker lists them rather than hiding
+them. Their listings are real output too; nothing re-runs them.
+
+An offset is a byte offset into that chunk, which is why the numbers down the
+left are not consecutive — the gap to the next line IS the instruction's
+width. A window inside a subprogram's chunk carries that chunk's `== name ==`
+header, since a listing line means nothing without it. **The three
+`OP_SUBRANGE` at the head of every script are the machine registering the
+language's own subranges** before a program's first statement, and no window
+opens on them but `OP_SUBRANGE`'s own.
 
 **Satisfies** — the rules of `spec/ALGOL-24.md` this instruction exists to
 serve, where there are any. This is the section a 1987 manual had no need for
@@ -166,6 +196,17 @@ chunk ran out. The type is compared first because `1` and `1.0` compare
 equal and render differently, and an OBJECT is never interned -- two
 subprogram bodies that compare equal are still two subprograms.
 
+**Example**
+
+```algol24
+var N := 42;
+```
+
+```
+6  OP_CONSTANT 3
+8  OP_DEFINE_GLOBAL 0
+```
+
 **See also** — `OP_LONG`, `OP_NIL`, `OP_TRUE`, `OP_FALSE`.
 
 ## OP_NIL — Push Nil
@@ -184,6 +225,17 @@ X` passes for every X [VAR-005]. Neither follows from this instruction; both
 are decided by `OP_IS` and `OP_CAST`, and the two differ by one line each
 for exactly this reason.
 
+**Example**
+
+```algol24
+var Nothing;
+```
+
+```
+6  OP_NIL
+7  OP_DEFINE_GLOBAL 0
+```
+
 **See also** — `OP_TRUE`, `OP_FALSE`, `OP_CONSTANT`, `OP_IS`, `OP_CAST`.
 
 ## OP_TRUE — Push True
@@ -197,6 +249,17 @@ Encoding    [ 2 ]                             1 byte
 **Operation** — Pushes True. A dedicated opcode rather than a constant, as
 `clox` has it: a Boolean literal is common enough to be worth one byte
 instead of two and a table slot.
+
+**Example**
+
+```algol24
+var Yes := True;
+```
+
+```
+6  OP_TRUE
+7  OP_DEFINE_GLOBAL 0
+```
 
 **See also** — `OP_FALSE`, `OP_NIL`, `OP_NOT`.
 
@@ -213,6 +276,17 @@ Encoding    [ 3 ]                             1 byte
 False is falsey and so is the Integer `0`, but they are not the same value:
 `0 = False` is false. Truthiness is a question asked of a value, not a
 conversion applied to one.
+
+**Example**
+
+```algol24
+var No := False;
+```
+
+```
+6  OP_FALSE
+7  OP_DEFINE_GLOBAL 0
+```
 
 **See also** — `OP_TRUE`, `OP_NIL`, `OP_NOT`.
 
@@ -240,6 +314,19 @@ built on and not an operand width. A literal too large answers `The value
 stack overflowed.` at run time, which is better than refusing a program the
 machine could nearly hold.
 
+**Example**
+
+```algol24
+var Row := [10, 20];
+```
+
+```
+6  OP_CONSTANT 3
+8  OP_CONSTANT 4
+10  OP_LIST 2
+13  OP_DEFINE_GLOBAL 0
+```
+
 **Satisfies** — [COL-001].
 
 **Raises** — `The value stack overflowed.` for a literal larger than the
@@ -264,6 +351,19 @@ A Map keyed by a String is not reachable with a Char key: `['n': 21]` keys
 it with a **Char** [TYP-003], and a reader asking for `Str ('n')` finds
 nothing. That is the language's answer and not this instruction's, but it is
 where it is usually met.
+
+**Example**
+
+```algol24
+var Named := ['key' : 1];
+```
+
+```
+6  OP_CONSTANT 3
+8  OP_CONSTANT 4
+10  OP_MAP 1
+13  OP_DEFINE_GLOBAL 0
+```
 
 **Satisfies** — [COL-001].
 
@@ -294,6 +394,19 @@ the jump skips the one the `try` would have run. Without that the handler
 stack keeps an entry whose frame and stack depths are stale, and the NEXT
 raise unwinds to it. The corpus passed before that was fixed, by luck.
 
+**Example**
+
+```algol24
+WriteLn ('discarded');
+```
+
+```
+8  OP_PRINT
+9  OP_NIL
+10  OP_POP
+11  OP_NIL
+```
+
 **Raises** — `The value stack underflowed.` when there is nothing to
 discard, which means the bytecode is wrong rather than the program.
 
@@ -316,6 +429,27 @@ terms rather than two. Declaring it `1 2` instead passes every check a two-
 term model can make -- the net is the same, and it does fail on an empty
 stack -- so `pops` and `needs` are different questions, and an instruction
 may read the top without taking it.
+
+**Example**
+
+```algol24
+function Area () : Integer;
+var
+    Width, Height : Integer := 3;
+
+begin
+    Exit Width * Height;
+end
+
+WriteLn (Area ());
+```
+
+```
+== Area ==
+0  OP_CONSTANT 0
+2  OP_DUP
+3  OP_GET_LOCAL 0
+```
 
 **See also** — `OP_POP`, `OP_TRY`, `OP_RAISE`.
 
@@ -342,6 +476,26 @@ before emitting anything.
 Measured at 13.1 M instructions a second against a global's 12.8, over a
 realistic mix.
 
+**Example**
+
+```algol24
+procedure Count ();
+begin
+    var N := 1;
+
+    WriteLn (N);
+end
+
+Count ();
+```
+
+```
+== Count ==
+0  OP_CONSTANT 0
+2  OP_GET_LOCAL 0
+4  OP_PRINT
+```
+
 **See also** — `OP_SET_LOCAL`, `OP_GET_BOX`, `OP_GET_GLOBAL`, `OP_LONG`.
 
 ## OP_SET_LOCAL — Store A Local
@@ -362,6 +516,27 @@ stack.
 It stays because assignment is an expression [EXP-017]: `X := (Y := 1)`
 leaves both at 1. A statement that discards the value emits an `OP_POP` of
 its own; an expression that uses it does not.
+
+**Example**
+
+```algol24
+procedure Count ();
+begin
+    var N := 1;
+
+    N := N + 1;
+end
+
+Count ();
+```
+
+```
+== Count ==
+4  OP_CONSTANT 0
+6  OP_ADD
+7  OP_SET_LOCAL 0
+9  OP_POP
+```
 
 **Satisfies** — [EXP-017].
 
@@ -396,6 +571,21 @@ table where the caller had it in slot 2 of the script's, so recursion read
 the wrong variable and answered 28 where 55 was right. Every global resolves
 against the outermost chunk.
 
+**Example**
+
+```algol24
+var N := 1;
+
+WriteLn (N);
+```
+
+```
+6  OP_CONSTANT 3
+8  OP_DEFINE_GLOBAL 0
+10  OP_GET_GLOBAL 0
+12  OP_PRINT
+```
+
 **Raises** — `Undefined variable '<name>'.` for a slot nothing has defined
 -- a read from above the declaration that defines it. A declaration is what
 defines a global, so `var X;` is nil while a read above it raises.
@@ -424,6 +614,18 @@ form is not an exotic case but the ordinary one above the first 256.
 Measured at no cost: Fib (27) is 0.96 s against 0.95 s before the split
 existed.
 
+**Example** — `WriteLn (G300);` in a program that declares three hundred
+globals, reading back the slot the line above it wrote.
+
+```
+1348  OP_SET_GLOBAL_LONG 299
+1351  OP_POP
+1352  OP_GET_GLOBAL_LONG 299
+1355  OP_PRINT
+```
+
+<!-- reference.sh: example-not-run OP_GET_GLOBAL_LONG — three hundred declarations do not fit in an entry -->
+
 **Raises** — `Undefined variable '<name>'.`, as the narrow form does.
 
 **See also** — `OP_GET_GLOBAL`, `OP_DEFINE_GLOBAL_LONG`,
@@ -447,6 +649,18 @@ no initializer defines it as nil rather than leaving it undefined.
 asymmetry is what lets a read from above a declaration raise while the
 declaration itself may store nil.
 
+**Example**
+
+```algol24
+var N := 1;
+```
+
+```
+6  OP_CONSTANT 3
+8  OP_DEFINE_GLOBAL 0
+10  OP_NIL
+```
+
 **Satisfies** — [DCL-001].
 
 **See also** — `OP_DEFINE_GLOBAL_LONG`, `OP_GET_GLOBAL`, `OP_SET_GLOBAL`.
@@ -463,6 +677,19 @@ Encoding    [ 65 ][ s ]                       3 bytes
 
 **Operation** — Pops a value and defines a global whose slot one byte cannot
 reach.
+
+**Example** — the same program at the slot where the narrow form runs out:
+255 is the last that fits in a byte, and the next declaration takes the long
+form.
+
+```
+1034  OP_DEFINE_GLOBAL 255
+1036  OP_LONG
+1037  OP_CONSTANT 259
+1040  OP_DEFINE_GLOBAL_LONG 256
+```
+
+<!-- reference.sh: example-not-run OP_DEFINE_GLOBAL_LONG — three hundred declarations do not fit in an entry -->
 
 **Satisfies** — [DCL-001].
 
@@ -483,6 +710,21 @@ The value stays.
 **Operation** — Stores the top into a global's slot and leaves it there, for
 the reason `OP_SET_LOCAL` gives [EXP-017].
 
+**Example**
+
+```algol24
+var N := 1;
+
+N := 2;
+```
+
+```
+8  OP_DEFINE_GLOBAL 0
+10  OP_CONSTANT 4
+12  OP_SET_GLOBAL 0
+14  OP_POP
+```
+
 **Satisfies** — [EXP-017].
 
 **Raises** — `Undefined variable '<name>'.` for a slot nothing has defined.
@@ -502,6 +744,18 @@ Encoding    [ 66 ][ s ]                       3 bytes
 The value stays.
 
 **Operation** — Stores the top into a wide global slot and leaves it there.
+
+**Example** — `G300 := 1;` in a program that declares three hundred globals,
+so that the one written to is slot 299.
+
+```
+1344  OP_LONG
+1345  OP_CONSTANT 303
+1348  OP_SET_GLOBAL_LONG 299
+1351  OP_POP
+```
+
+<!-- reference.sh: example-not-run OP_SET_GLOBAL_LONG — three hundred declarations do not fit in an entry -->
 
 **Satisfies** — [EXP-017].
 
@@ -537,6 +791,28 @@ Capture by reference, outliving the call, and a fresh set per call all fall
 out of the cell being heap-allocated rather than needing anything of their
 own [FUN-009], [FUN-010].
 
+**Example**
+
+```algol24
+procedure Counter ();
+begin
+    var N := 0;
+
+    procedure Bump (); begin N := N + 1; end
+
+    Bump ();
+end
+
+Counter ();
+```
+
+```
+== Counter ==
+0  OP_CONSTANT 0
+2  OP_CELL
+3  OP_CLOSURE 1 1 local:0
+```
+
 **Satisfies** — [FUN-009], [FUN-010].
 
 **See also** — `OP_CLOSURE`, `OP_GET_BOX`, `OP_SET_BOX`, `OP_GET_CELL`.
@@ -558,6 +834,29 @@ the ENCLOSING subprogram, whose boxed locals sit in slots; the nested one
 reads the same cells through `OP_GET_CELL`, having them as captures rather
 than as locals.
 
+**Example**
+
+```algol24
+procedure Counter ();
+begin
+    var N := 0;
+
+    procedure Bump (); begin N := N + 1; end
+
+    WriteLn (N);
+end
+
+Counter ();
+```
+
+```
+== Counter ==
+3  OP_CLOSURE 1 1 local:0
+10  OP_CELL
+11  OP_GET_BOX 0
+13  OP_PRINT
+```
+
 **See also** — `OP_SET_BOX`, `OP_CELL`, `OP_GET_CELL`, `OP_GET_LOCAL`.
 
 ## OP_SET_BOX — Store Into A Boxed Local
@@ -574,6 +873,29 @@ The value stays.
 
 **Operation** — Stores the top into the cell in a local slot and leaves it
 on the stack.
+
+**Example**
+
+```algol24
+procedure Counter ();
+begin
+    var N := 0;
+
+    procedure Bump (); begin N := N + 1; end
+
+    N := 5;
+end
+
+Counter ();
+```
+
+```
+== Counter ==
+10  OP_CELL
+11  OP_CONSTANT 2
+13  OP_SET_BOX 0
+15  OP_POP
+```
 
 **Satisfies** — [EXP-017].
 
@@ -599,6 +921,27 @@ A method whose body declares a nested subprogram boxes `this` as a local of
 that name, which is the whole of what makes it reachable: a capture is found
 by name among the enclosing locals, so `this` has to be one of them.
 
+**Example**
+
+```algol24
+procedure Counter ();
+begin
+    var N := 0;
+
+    procedure Bump (); begin WriteLn (N); end
+
+    Bump ();
+end
+
+Counter ();
+```
+
+```
+== Bump ==
+0  OP_GET_CELL 0
+2  OP_PRINT
+```
+
 **Satisfies** — [FUN-009], [FUN-012].
 
 **See also** — `OP_SET_CELL`, `OP_CLOSURE`, `OP_GET_BOX`, `OP_THIS`.
@@ -619,6 +962,28 @@ The value stays.
 leaves it on the stack. A write through a capture is visible to every
 closure over the same cell and to the subprogram that made it, which is what
 capture by reference means [FUN-009].
+
+**Example**
+
+```algol24
+procedure Counter ();
+begin
+    var N := 0;
+
+    procedure Bump (); begin N := 1; end
+
+    Bump ();
+end
+
+Counter ();
+```
+
+```
+== Bump ==
+0  OP_CONSTANT 0
+2  OP_SET_CELL 0
+4  OP_POP
+```
 
 **Satisfies** — [EXP-017], [FUN-009].
 
@@ -677,6 +1042,29 @@ most one operand may widen, and this instruction runs once per closure made
 rather than in the dispatch loop -- so the fixed width costs nothing
 measurable and removes the cap outright.
 
+**Example**
+
+```algol24
+procedure Counter ();
+begin
+    var N := 0;
+
+    procedure Bump (); begin N := N + 1; end
+
+    Bump ();
+end
+
+Counter ();
+```
+
+```
+== Counter ==
+2  OP_CELL
+3  OP_CLOSURE 1 1 local:0
+10  OP_CELL
+11  OP_GET_BOX 1
+```
+
 **Satisfies** — [FUN-009], [FUN-010], [FUN-012]. Capture by reference,
 outliving the call, a fresh set per call, and nesting to any depth -- all
 four falling out of the cell being heap-allocated.
@@ -706,6 +1094,20 @@ so the machine cannot hold a second opinion about arithmetic.
 A class may define `+` for its own instances [EXP-020], and an instance
 operand is sent to that method before the host is asked.
 
+**Example**
+
+```algol24
+var N := 1;
+var Sum := N + 2;
+```
+
+```
+10  OP_GET_GLOBAL 0
+12  OP_CONSTANT 4
+14  OP_ADD
+15  OP_DEFINE_GLOBAL 1
+```
+
 **Satisfies** — [EXP-004], [EXP-005], [EXP-007], [EXP-008], [EXP-020],
 [LEX-018].
 
@@ -723,6 +1125,20 @@ Encoding    [ 14 ]                            1 byte
 
 **Operation** — Pops two values and pushes the lower less the upper.
 
+**Example**
+
+```algol24
+var N := 9;
+var Less := N - 2;
+```
+
+```
+10  OP_GET_GLOBAL 0
+12  OP_CONSTANT 4
+14  OP_SUBTRACT
+15  OP_DEFINE_GLOBAL 1
+```
+
 **Satisfies** — [EXP-004], [EXP-005], [EXP-007], [EXP-020].
 
 **Raises** — `Operands must be numbers.`
@@ -738,6 +1154,20 @@ Encoding    [ 15 ]                            1 byte
 **Stack** — pops 2, pushes 1, needs 2.
 
 **Operation** — Pops two values and pushes their product.
+
+**Example**
+
+```algol24
+var N := 6;
+var Product := N * 7;
+```
+
+```
+10  OP_GET_GLOBAL 0
+12  OP_CONSTANT 4
+14  OP_MULTIPLY
+15  OP_DEFINE_GLOBAL 1
+```
 
 **Satisfies** — [EXP-004], [EXP-005], [EXP-007], [EXP-020].
 
@@ -760,6 +1190,20 @@ is `2.0` [EXP-004].
 ⚠️ Division by zero is NOT an error here. `7 / 0` yields `Infinity`, and `0
 / 0` a `NaN` [EXP-006]. `OP_DIV` and `OP_MOD` are the two that raise, which
 is why they are separate opcodes and not this one rounded.
+
+**Example**
+
+```algol24
+var N := 7;
+var Half := N / 2;
+```
+
+```
+10  OP_GET_GLOBAL 0
+12  OP_CONSTANT 4
+14  OP_DIVIDE
+15  OP_DEFINE_GLOBAL 1
+```
 
 **Satisfies** — [EXP-004], [EXP-005], [EXP-006], [EXP-020].
 
@@ -785,6 +1229,20 @@ divisor.
 so `-7 div 2` is -3 and `-7 >> 1` is -4 [EXP-024]. They agree whenever the
 shifted-out bits are zero, which is what makes the difference easy to miss.
 
+**Example**
+
+```algol24
+var N := 7;
+var Whole := N div 2;
+```
+
+```
+10  OP_GET_GLOBAL 0
+12  OP_CONSTANT 4
+14  OP_DIV
+15  OP_DEFINE_GLOBAL 1
+```
+
 **Satisfies** — [EXP-004], [EXP-020], [EXP-024].
 
 **Raises** — `div expects Integers.` for a Double operand, and `Division by
@@ -805,6 +1263,20 @@ it refuses a Double and raises on a zero divisor.
 
 There is no `Mod` built-in. `mod` is an operator and only an operator.
 
+**Example**
+
+```algol24
+var N := 7;
+var Rest := N mod 2;
+```
+
+```
+10  OP_GET_GLOBAL 0
+12  OP_CONSTANT 4
+14  OP_MOD
+15  OP_DEFINE_GLOBAL 1
+```
+
 **Satisfies** — [EXP-004], [EXP-020].
 
 **Raises** — `mod expects Integers.` for a Double operand, and `Division by
@@ -822,6 +1294,20 @@ Encoding    [ 28 ]                            1 byte
 
 **Operation** — Replaces the number on top with its negation. A class may
 define unary `-` for its own instances [EXP-020].
+
+**Example**
+
+```algol24
+var N := 1;
+var Down := -N;
+```
+
+```
+8  OP_DEFINE_GLOBAL 0
+10  OP_GET_GLOBAL 0
+12  OP_NEGATE
+13  OP_DEFINE_GLOBAL 1
+```
 
 **Satisfies** — [EXP-020].
 
@@ -850,6 +1336,20 @@ not [EXP-023], [LEX-018].
 [EXP-010], so `6 and 3` is 3 where `6 & 3` is 2 -- the Pascal reader's trap,
 and a `[WARN]` in the front end where an operand's type is Integer.
 
+**Example**
+
+```algol24
+var N := 6;
+var Masked := N & 3;
+```
+
+```
+10  OP_GET_GLOBAL 0
+12  OP_CONSTANT 4
+14  OP_BIT_AND
+15  OP_DEFINE_GLOBAL 1
+```
+
 **Satisfies** — [EXP-023], [LEX-018].
 
 **Raises** — `& expects Integers.`
@@ -865,6 +1365,20 @@ Encoding    [ 21 ]                            1 byte
 **Stack** — pops 2, pushes 1, needs 2.
 
 **Operation** — Pops two Integers and pushes their bitwise or.
+
+**Example**
+
+```algol24
+var N := 6;
+var Set? := N | 1;
+```
+
+```
+10  OP_GET_GLOBAL 0
+12  OP_CONSTANT 4
+14  OP_BIT_OR
+15  OP_DEFINE_GLOBAL 1
+```
 
 **Satisfies** — [EXP-023].
 
@@ -882,6 +1396,20 @@ Encoding    [ 22 ]                            1 byte
 
 **Operation** — Pops two Integers and pushes their bitwise exclusive or.
 
+**Example**
+
+```algol24
+var N := 6;
+var Flipped := N ^ 3;
+```
+
+```
+10  OP_GET_GLOBAL 0
+12  OP_CONSTANT 4
+14  OP_BIT_XOR
+15  OP_DEFINE_GLOBAL 1
+```
+
 **Satisfies** — [EXP-023].
 
 **Raises** — `^ expects Integers.`
@@ -898,6 +1426,20 @@ Encoding    [ 23 ]                            1 byte
 
 **Operation** — Replaces the Integer on top with its bitwise complement.
 Two's complement extended infinitely to the left, so `~0` is -1 [EXP-023].
+
+**Example**
+
+```algol24
+var N := 0;
+var Inverted := ~N;
+```
+
+```
+8  OP_DEFINE_GLOBAL 0
+10  OP_GET_GLOBAL 0
+12  OP_BIT_NOT
+13  OP_DEFINE_GLOBAL 1
+```
 
 **Satisfies** — [EXP-023].
 
@@ -918,6 +1460,20 @@ Encoding    [ 24 ]                            1 byte
 Integer is unbounded, so a shift GROWS rather than discarding the high bits:
 `1 << 70` is an exact power of two [EXP-023], [LEX-018].
 
+**Example**
+
+```algol24
+var N := 1;
+var Wider := N << 4;
+```
+
+```
+10  OP_GET_GLOBAL 0
+12  OP_CONSTANT 4
+14  OP_SHIFT_LEFT
+15  OP_DEFINE_GLOBAL 1
+```
+
 **Satisfies** — [EXP-023], [LEX-018].
 
 **Raises** — `<< expects Integers.`
@@ -936,6 +1492,20 @@ Encoding    [ 25 ]                            1 byte
 FLOORS where `div` truncates toward zero, so `-7 >> 1` is -4 and `-7 div 2`
 is -3 [EXP-024] -- which is why the two are separate opcodes and neither is
 the other with a sign fixed up.
+
+**Example**
+
+```algol24
+var N := 16;
+var Narrower := N >> 2;
+```
+
+```
+10  OP_GET_GLOBAL 0
+12  OP_CONSTANT 4
+14  OP_SHIFT_RIGHT
+15  OP_DEFINE_GLOBAL 1
+```
 
 **Satisfies** — [EXP-024].
 
@@ -963,6 +1533,20 @@ collections and enumeration members compare by identity rather than contents
 
 A class may define `Compare` and have it consulted [VAL-014].
 
+**Example**
+
+```algol24
+var N := 1;
+var Same := N = 2;
+```
+
+```
+10  OP_GET_GLOBAL 0
+12  OP_CONSTANT 4
+14  OP_EQUAL
+15  OP_DEFINE_GLOBAL 1
+```
+
 **Satisfies** — [VAL-011], [VAL-013], [VAL-014].
 
 **See also** — `OP_GREATER`, `OP_LESS`, `OP_IN`, `OP_NOT`.
@@ -981,6 +1565,20 @@ the upper.
 Enumeration members are NOT ordered: `RED < GREEN` is `Operands must be
 numbers.` [ENU-008]. Their ordinal is reachable, and comparing that is the
 program's business.
+
+**Example**
+
+```algol24
+var N := 1;
+var Above := N > 0;
+```
+
+```
+10  OP_GET_GLOBAL 0
+12  OP_CONSTANT 4
+14  OP_GREATER
+15  OP_DEFINE_GLOBAL 1
+```
 
 **Satisfies** — [ENU-008], [VAL-014].
 
@@ -1006,6 +1604,20 @@ comparison with NaN is false, so negating one answers **true**, and
 `OP_EQUAL` keeps its negation for `<>` and is right to — equality is defined
 for NaN, so `NaN <> NaN` is true, which is the wanted answer.
 
+**Example**
+
+```algol24
+var N := 1;
+var AtLeast := N >= 0;
+```
+
+```
+10  OP_GET_GLOBAL 0
+12  OP_CONSTANT 4
+14  OP_GREATER_EQUAL
+15  OP_DEFINE_GLOBAL 1
+```
+
 **Satisfies** — [ENU-008], [VAL-014].
 
 **Raises** — `Operands must be numbers.`
@@ -1022,6 +1634,20 @@ Encoding    [ 12 ]                            1 byte
 
 **Operation** — Pops two values and pushes whether the lower is less than
 the upper.
+
+**Example**
+
+```algol24
+var N := 1;
+var Below := N < 9;
+```
+
+```
+10  OP_GET_GLOBAL 0
+12  OP_CONSTANT 4
+14  OP_LESS
+15  OP_DEFINE_GLOBAL 1
+```
 
 **Satisfies** — [ENU-008], [VAL-014].
 
@@ -1045,6 +1671,20 @@ equal to the upper.
 exactly the shape a negated `OP_GREATER` inverts — so a NaN difference
 **passed** an assertion written to catch it, in four units at once. See
 `OP_GREATER_EQUAL` for why `<>` keeps its negation and the ordered pair cannot.
+
+**Example**
+
+```algol24
+var N := 1;
+var UpTo := N <= 9;
+```
+
+```
+10  OP_GET_GLOBAL 0
+12  OP_CONSTANT 4
+14  OP_LESS_EQUAL
+15  OP_DEFINE_GLOBAL 1
+```
 
 **Satisfies** — [ENU-008], [VAL-014].
 
@@ -1070,6 +1710,20 @@ is the one place the machine must not defer. The host sees one of the
 machine's objects for an enum member and calls every object truthy, so a
 member of ordinal zero would come back true [ENU-009].
 
+**Example**
+
+```algol24
+var Yes := True;
+var No := not Yes;
+```
+
+```
+7  OP_DEFINE_GLOBAL 0
+9  OP_GET_GLOBAL 0
+11  OP_NOT
+12  OP_DEFINE_GLOBAL 1
+```
+
 **Satisfies** — [ENU-009].
 
 **See also** — `OP_JUMP_IF_FALSE`, `OP_TRUE`, `OP_FALSE`, `OP_BIT_NOT`.
@@ -1086,6 +1740,20 @@ Encoding    [ 19 ]                            1 byte
 collection has it. The host's own `in` decides it, which is what makes a Map
 test its KEYS and a String test for a substring without this instruction
 knowing the difference.
+
+**Example**
+
+```algol24
+var N := 1;
+var Member := N in [1, 2, 3];
+```
+
+```
+16  OP_CONSTANT 5
+18  OP_LIST 3
+21  OP_IN
+22  OP_DEFINE_GLOBAL 1
+```
 
 **Satisfies** — [VAL-013], [COL-001].
 
@@ -1132,6 +1800,20 @@ select -- reported as `No matching signature for function.`, which names the
 call and not the cause. A Pointer is only a VALUE under `--ffi` [TYP-017];
 the TEST is answerable always.
 
+**Example**
+
+```algol24
+var N := 1;
+var Whole := N is Integer;
+```
+
+```
+8  OP_DEFINE_GLOBAL 0
+10  OP_GET_GLOBAL 0
+12  OP_IS 4
+14  OP_DEFINE_GLOBAL 1
+```
+
 **Satisfies** — [TYP-001], [TYP-002], [TYP-017], [VAR-005], [ENU-006].
 
 **See also** — `OP_CAST`, `OP_WIDEN`, `OP_SUBRANGE`.
@@ -1156,6 +1838,20 @@ that converts nothing still has to fail.
 
 nil satisfies every type and so passes every cast [VAR-005], and `as Any`
 always passes.
+
+**Example**
+
+```algol24
+var N := 1;
+var Whole := N as Integer;
+```
+
+```
+8  OP_DEFINE_GLOBAL 0
+10  OP_GET_GLOBAL 0
+12  OP_CAST 4
+14  OP_DEFINE_GLOBAL 1
+```
 
 **Satisfies** — [TYP-001], [VAR-005].
 
@@ -1187,6 +1883,18 @@ A subrange annotation widens nothing and instead CHECKS, which is
 `OP_SUBRANGE`'s business -- the bounds live in a table the chunk has to be
 told about.
 
+**Example**
+
+```algol24
+var Exact : Double := 1;
+```
+
+```
+6  OP_CONSTANT 3
+8  OP_WIDEN 4
+10  OP_DEFINE_GLOBAL 0
+```
+
 **Satisfies** — [VAL-001], [VAL-002], [VAR-004].
 
 **Raises** — `<value> is not in <name>.` where the declared type is a
@@ -1214,6 +1922,19 @@ processors answer a range check from one shape of table rather than three.
 The bounds travel as a CONSTANT and never as operands, because an Integer is
 unbounded [LEX-018] and `type Big = 0..99999999999999999999` is legal.
 
+**Example**
+
+```algol24
+type Digit = 0 .. 9;
+
+var D : Digit := 5;
+```
+
+```
+6  OP_SUBRANGE 3
+8  OP_CONSTANT 4
+```
+
 **Satisfies** — [TYP-002], [LEX-018].
 
 **See also** — `OP_WIDEN`, `OP_IS`, `OP_CAST`.
@@ -1239,6 +1960,27 @@ answer: the left `IP` is read before `ReadShort` advances past the two
 operand bytes, so the jump lands two bytes short -- on the operand of
 whatever follows. Read the distance into a local first.
 
+**Example**
+
+```algol24
+var N := 1;
+
+if N > 0 then WriteLn ('above');
+else WriteLn ('below');
+```
+
+```
+22  OP_NIL
+23  OP_POP
+24  OP_JUMP 6
+27  OP_POP
+28  OP_CONSTANT 6
+30  OP_PRINT
+31  OP_NIL
+32  OP_POP
+33  OP_NIL
+```
+
 **See also** — `OP_LOOP`, `OP_JUMP_IF_FALSE`.
 
 ## OP_JUMP_IF_FALSE — Jump If Falsey
@@ -1263,6 +2005,26 @@ next instruction to use.
 Truthiness goes through the machine's own and not the host's, for the reason
 `OP_NOT` gives: an enumeration member of ordinal zero is falsey and the host
 would call it truthy [ENU-009].
+
+**Example**
+
+```algol24
+var N := 1;
+
+if N > 0 then WriteLn ('above');
+```
+
+```
+12  OP_CONSTANT 4
+14  OP_GREATER
+15  OP_JUMP_IF_FALSE 9
+18  OP_POP
+19  OP_CONSTANT 5
+21  OP_PRINT
+22  OP_NIL
+23  OP_POP
+24  OP_JUMP 1
+```
 
 **Satisfies** — [EXP-009], [EXP-010], [ENU-009].
 
@@ -1291,6 +2053,24 @@ emitter leaves a balanced stack, and checking it is what catches the class.
 loop forms -- a counted `for` runs its step and falls into the backward
 jump, a `while` has no step and falls straight into it -- which is also why
 `continue` needs no backward jump of its own.
+
+**Example**
+
+```algol24
+var N := 0;
+
+while N < 3 do N := N + 1;
+```
+
+```
+21  OP_CONSTANT 5
+23  OP_ADD
+24  OP_SET_GLOBAL 0
+26  OP_POP
+27  OP_LOOP 20
+30  OP_POP
+31  OP_NIL
+```
 
 **Satisfies** — [STM-009].
 
@@ -1324,6 +2104,24 @@ becomes a raise of it. One try for the run rather than one per instruction,
 and it still costs about 15% -- Fib (27) was 0.79 s before exceptions
 existed and is 0.91 s with them.
 
+**Example**
+
+```algol24
+try
+    raise 'thrown';
+except
+    on e : String do WriteLn (e);
+end
+```
+
+```
+6  OP_TRY 7
+9  OP_CONSTANT 3
+11  OP_RAISE
+12  OP_UNTRY
+13  OP_JUMP 18
+```
+
 **Satisfies** — [STM-017], [STM-020].
 
 **Raises** — `Too many nested try blocks.`
@@ -1345,6 +2143,25 @@ Encoding    [ 53 ]                            1 byte
 inside the loop they leave, as well as an `OP_POP` per local. The jump skips
 the `OP_UNTRY` the `try` would have run, so the handler stack keeps an entry
 whose frame and stack depths are stale and the NEXT raise unwinds to it.
+
+**Example**
+
+```algol24
+try
+    raise 'thrown';
+except
+    on e : String do WriteLn (e);
+end
+```
+
+```
+9  OP_CONSTANT 3
+11  OP_RAISE
+12  OP_UNTRY
+13  OP_JUMP 18
+16  OP_DUP
+17  OP_IS 4
+```
 
 **Satisfies** — [STM-017].
 
@@ -1369,6 +2186,25 @@ and always goes last [STM-019].
 
 A raise with nothing protecting it escapes as the same String the
 interpreter reports [RT-012].
+
+**Example**
+
+```algol24
+try
+    raise 'thrown';
+except
+    on e : String do WriteLn (e);
+end
+```
+
+```
+6  OP_TRY 7
+9  OP_CONSTANT 3
+11  OP_RAISE
+12  OP_UNTRY
+13  OP_JUMP 18
+16  OP_DUP
+```
 
 **Satisfies** — [STM-017], [STM-018], [STM-019], [RT-012].
 
@@ -1407,6 +2243,24 @@ terms: a plain call, a method, a constructor and a selected overload.
 An EXTERNAL never enters a frame at all -- it has no bytecode to enter -- so
 it checks its own argument count, and skipping that check once let a wrong-
 arity call through to the foreign boundary [FUN-014].
+
+**Example**
+
+```algol24
+function Answer () : Integer;
+begin
+    Exit 42;
+end
+
+WriteLn (Answer ());
+```
+
+```
+8  OP_DEFINE_GLOBAL 0
+10  OP_GET_GLOBAL 0
+12  OP_CALL 0
+14  OP_PRINT
+```
 
 **Satisfies** — [EXP-011], [EXP-012], [EXP-013], [FUN-005], [FUN-011],
 [FUN-014].
@@ -1452,6 +2306,24 @@ constant index and the ordinary call is in the hot path. A unit QUALIFIER
 needs nothing further -- a qualifier decides which declaration a call
 reaches and nothing else, so it takes this instruction unchanged.
 
+**Example**
+
+```algol24
+function Log (Message : String, Level : String) : String;
+begin
+    Exit Level + ': ' + Message;
+end
+
+WriteLn (Log (Message: 'ready', Level: 'info'));
+```
+
+```
+12  OP_CONSTANT 4
+14  OP_CONSTANT 5
+16  OP_CALL_NAMED 6 2
+19  OP_PRINT
+```
+
 **Satisfies** — [EXP-013], [FUN-005], [FUN-016], [MOD-010].
 
 **Raises** — `A built-in has no named parameters.` where the callee is one
@@ -1487,6 +2359,24 @@ value is still evaluated and dropped, because the interpreter evaluates it
 into the `Return` it raises.
 
 `Exit` inside a loop leaves the whole subprogram, not the loop.
+
+**Example**
+
+```algol24
+function Answer () : Integer;
+begin
+    Exit 42;
+end
+
+WriteLn (Answer ());
+```
+
+```
+== Answer ==
+0  OP_CONSTANT 0
+2  OP_RETURN
+3  OP_NIL
+```
 
 **Satisfies** — [STM-009], [CLS-004], [FUN-011].
 
@@ -1531,6 +2421,22 @@ from `b` exists to prevent. The machine itself does not care -- it clears
 the flag on the first index READ, wherever that falls -- but a disassembler
 has to know.
 
+**Example**
+
+```algol24
+function Show (N : Integer) : String; begin Exit 'an Integer'; end
+function Show (S : String)  : String; begin Exit 'a String';  end
+
+WriteLn (Show (1));
+```
+
+```
+14  OP_GET_GLOBAL 1
+16  OP_GET_GLOBAL 2
+18  OP_OVERLOADS 2 5
+21  OP_DEFINE_GLOBAL 0
+```
+
 **Satisfies** — [FUN-013], [EXP-013], [EXP-014]. Two declarations of one
 name are an overload set; selection is at the call, on the values; and the
 passes run exact, then widening, then absorbing, over the whole inheritance
@@ -1569,6 +2475,18 @@ declaration answers the argument COUNTS it declares and the built-in keeps
 the rest [FUN-005]. The emitter decides which this instruction is reached
 for, on the count alone.
 
+**Example**
+
+```algol24
+WriteLn (Length ('abc'));
+```
+
+```
+6  OP_CONSTANT 3
+8  OP_BUILTIN 4 1
+11  OP_PRINT
+```
+
 **Satisfies** — [RT-001], [RT-015], [FUN-005].
 
 **Raises** — whatever the built-in raises, the message being the host's own.
@@ -1598,6 +2516,21 @@ Refusing it for every instance broke `conformance/0032`, where an instance
 with no such member must raise -- a fault in the program, not a gap in the
 machine.
 
+**Example**
+
+```algol24
+var Row := [10, 20];
+
+WriteLn (Row[0]);
+```
+
+```
+15  OP_GET_GLOBAL 0
+17  OP_CONSTANT 5
+19  OP_SUBSCRIPT_GET
+20  OP_PRINT
+```
+
 **Satisfies** — [COL-001], [TYP-011].
 
 **Raises** — `Subscript target should be an ordinal.` for a target that is
@@ -1620,6 +2553,21 @@ collection, the index and the value, in that order.
 
 A `List` has no `Remove` [COL-004], so a program shortening one does it by
 rebuilding; nothing here is involved in that.
+
+**Example**
+
+```algol24
+var Row := [10, 20];
+
+Row[0] := 99;
+```
+
+```
+17  OP_CONSTANT 5
+19  OP_CONSTANT 6
+21  OP_SUBSCRIPT_SET
+22  OP_POP
+```
 
 **Satisfies** — [EXP-017], [COL-001].
 
@@ -1648,6 +2596,21 @@ A class declaring `Elements` is iterable through it [TYP-011]. The refusal
 here was once unconditional for an instance, which broke the case where an
 instance WITHOUT the protocol must raise -- so the question is whether the
 class declares it, not whether the value is an instance.
+
+**Example**
+
+```algol24
+for var N in [1, 2] do WriteLn (N);
+```
+
+```
+10  OP_LIST 2
+13  OP_ITER
+14  OP_CONSTANT 5
+16  OP_NIL
+17  OP_GET_LOCAL 1
+19  OP_GET_LOCAL 0
+```
 
 **Satisfies** — [STM-009], [TYP-011], [COL-001].
 
@@ -1699,6 +2662,21 @@ Each of the five is written as a LITERAL in the lookup's chain, because a
 member name cannot be reached from a value held in a variable -- the same
 constraint `OP_IS` works under.
 
+**Example**
+
+```algol24
+var Row := [10, 20];
+
+WriteLn (Row.Length);
+```
+
+```
+13  OP_DEFINE_GLOBAL 0
+15  OP_GET_GLOBAL 0
+17  OP_GET_MEMBER 5
+19  OP_PRINT
+```
+
 **Satisfies** — [RT-001], [CLS-007], [CLS-008], [TYP-017].
 
 **Raises** — `Undefined property '<name>'.` for a name nothing answers.
@@ -1728,6 +2706,21 @@ Classes are HOISTED, as subprograms and enumerations are -- but a class's
 PARENT is attached in source order [CLS-016]. Binding the parent early
 reported `Undefined variable` for a name the program had declared perfectly
 well.
+
+**Example**
+
+```algol24
+class Point;
+begin
+end
+```
+
+```
+6  OP_CLASS 3
+8  OP_CONSTANT 4
+10  OP_METHOD 5
+12  OP_DEFINE_GLOBAL 0
+```
 
 **Satisfies** — [CLS-016], [DCL-002].
 
@@ -1761,6 +2754,24 @@ inherited field present, because the instance walks the chain for the names
 -- what was missing was the VALUE, so an inherited field read as nil. Parent
 first, so a subclass's initializer still wins by running after.
 
+**Example**
+
+```algol24
+class Point;
+var
+    X : Integer;
+
+begin
+end
+```
+
+```
+6  OP_CLASS 3
+8  OP_FIELD 4
+10  OP_CONSTANT 5
+12  OP_METHOD 6
+```
+
 **Satisfies** — [CLS-006].
 
 **See also** — `OP_CLASS`, `OP_GET_FIELD`, `OP_SET_FIELD`, `OP_METHOD`.
@@ -1792,6 +2803,23 @@ class-major. And a failed match must FALL THROUGH to the superclass rather
 than return, or a class declaring `Take (String)` hides an inherited `Take
 (Integer)` entirely.
 
+**Example**
+
+```algol24
+class Point;
+begin
+    function Where () : Integer; begin Exit 0; end
+end
+```
+
+```
+6  OP_CLASS 3
+8  OP_CONSTANT 4
+10  OP_METHOD 5
+12  OP_CONSTANT 6
+14  OP_METHOD 7
+```
+
 **Satisfies** — [FUN-013], [EXP-014], [CLS-009].
 
 **See also** — `OP_DECLARE_PROPERTY`, `OP_INVOKE`, `OP_CLASS`, `OP_SUPER`.
@@ -1817,6 +2845,28 @@ reading a name should call it. The two were one name briefly --
 `OP_GET_MEMBER` -- and the collision was silent in the worst way: an emitter
 edit appeared to do nothing, and the instruction emitted was a valid opcode
 doing the wrong thing.
+
+**Example**
+
+```algol24
+class Row;
+var
+    Cells : List;
+
+begin
+    constructor Init (); begin Cells := [10, 20]; end
+
+    property Length : Integer; begin Exit Cells.Length; end
+end
+```
+
+```
+16  OP_METHOD 8
+18  OP_CONSTANT 9
+20  OP_DECLARE_PROPERTY 10
+22  OP_DEFINE_GLOBAL 0
+24  OP_NIL
+```
 
 **Satisfies** — [CLS-007].
 
@@ -1847,6 +2897,26 @@ ever had its parent attached, and an instance of such a subclass had none of
 its inherited fields. The corpus has inheritance cases and module cases but
 not their PRODUCT.
 
+**Example**
+
+```algol24
+class Base;
+begin
+end
+
+class Derived (Base);
+begin
+end
+```
+
+```
+22  OP_GET_GLOBAL 1
+24  OP_GET_GLOBAL 0
+26  OP_INHERIT 3
+28  OP_POP
+29  OP_NIL
+```
+
 **Satisfies** — [CLS-009], [CLS-013], [EXP-014].
 
 **Raises** — `'<name>' is not a class.` for a parent that is not one, and `A
@@ -1876,6 +2946,27 @@ field read inside a singleton's own method -- which is how this compiler's
 own source-line table is written, so it is what stopped the machine running
 the compiler.
 
+**Example**
+
+```algol24
+object Config;
+var
+    Name : String := 'config';
+
+begin
+end
+
+WriteLn (Config.Name);
+```
+
+```
+16  OP_GET_GLOBAL 0
+18  OP_SINGLETON
+19  OP_DEFINE_GLOBAL 0
+21  OP_GET_GLOBAL 0
+23  OP_GET_FIELD 7
+```
+
 **Satisfies** — [CLS-015].
 
 **See also** — `OP_CLASS`, `OP_GET_FIELD`, `OP_THIS`.
@@ -1903,6 +2994,24 @@ second. The interpreter looks the variable up and reaches for `this` only
 when that RAISES, so a global of the name wins over a field of it. The
 emitter decides it statically instead: not a local, not a capture, not a
 visible global, and a member of the class being compiled.
+
+**Example**
+
+```algol24
+class Point;
+var
+    X : Integer;
+
+begin
+    function Where () : Integer; begin Exit this.X; end
+end
+```
+
+```
+== Where ==
+0  OP_THIS
+1  OP_GET_FIELD 0
+```
 
 **Satisfies** — [CLS-004], [FUN-012].
 
@@ -1937,6 +3046,25 @@ METHOD call unblocked 18 -- the library writes `while not AtEnd () do`
 inside a class constantly. Both are the same implicit `this`; only the
 opcode differs.
 
+**Example**
+
+```algol24
+class Point;
+var
+    X : Integer;
+
+begin
+    function Where () : Integer; begin Exit X; end
+end
+```
+
+```
+== Where ==
+0  OP_THIS
+1  OP_GET_FIELD 0
+3  OP_RETURN
+```
+
 **Satisfies** — [CLS-007], [CLS-008].
 
 **Raises** — `Undefined property '<name>'.` for a name nothing answers. NOT
@@ -1966,6 +3094,26 @@ cannot be answered after the value is already there.
 
 An instance is closed -- writing an undeclared field raises rather than
 creating one.
+
+**Example**
+
+```algol24
+class Point;
+var
+    X : Integer;
+
+begin
+    constructor Init (At : Integer); begin X := At; end
+end
+```
+
+```
+== Init ==
+5  OP_THIS
+6  OP_GET_LOCAL 0
+8  OP_SET_FIELD 0
+10  OP_POP
+```
 
 **Satisfies** — [EXP-017], [CLS-006].
 
@@ -2010,6 +3158,21 @@ gone. Both other processors answer `Undefined property` in every shape -- an
 undeclared name, one missing up the chain, one on a singleton -- nothing in
 the corpus reached it, and a VM test had pinned the wrong wording.
 
+**Example**
+
+```algol24
+var Row := [10];
+
+Row.Add (20);
+```
+
+```
+13  OP_GET_GLOBAL 0
+15  OP_CONSTANT 4
+17  OP_INVOKE 5 1
+20  OP_POP
+```
+
 **Satisfies** — [EXP-013], [EXP-014], [FUN-013], [COL-011], [CLS-009].
 
 **Raises** — `Undefined property '<name>'.` for a name nothing in the chain
@@ -2044,6 +3207,29 @@ are the argument names. Two constant indices would break the invariant that
 at most one operand per opcode is widenable, which is what makes the
 `OP_LONG` prefix sound.
 
+**Example**
+
+```algol24
+class Window;
+begin
+    function Size (Wide : Integer, High : Integer) : Integer;
+    begin
+        Exit Wide * High;
+    end
+end
+
+var W := Window ();
+
+WriteLn (W.Size (Wide: 4, High: 3));
+```
+
+```
+26  OP_CONSTANT 8
+28  OP_CONSTANT 9
+30  OP_INVOKE_NAMED 10 2
+33  OP_PRINT
+```
+
 **Satisfies** — [EXP-013], [FUN-016].
 
 **Raises** — what `OP_INVOKE` raises, plus `A built-in has no named
@@ -2074,6 +3260,26 @@ own: the general-expression path emits this and then `OP_CALL`.
 
 The slot is unconditionally a short, as `OP_INVOKE_EXT`'s is, because the
 instruction already spends its one widenable operand on the name.
+
+**Example**
+
+```algol24
+class Base;
+begin
+    function Tag () : String; begin Exit 'base'; end
+end
+
+class Derived (Base);
+begin
+    function Tag () : String; begin Exit super.Tag () + ' and derived'; end
+end
+```
+
+```
+== Tag ==
+0  OP_SUPER 0 0
+4  OP_CALL 0
+```
 
 **Satisfies** — [CLS-012], [FUN-011].
 
@@ -2110,6 +3316,25 @@ call knows how many arguments were written.
 to the prepend rather than read off the stack; taking it from the stack read
 the bound value itself as the receiver, and the extension then asked a
 subprogram for its `Length`.
+
+**Example**
+
+```algol24
+extension function Twice (N : Integer) : Integer;
+begin
+    Exit N * 2;
+end
+
+var N := 21;
+var Held := N.Twice;
+```
+
+```
+12  OP_DEFINE_GLOBAL 1
+14  OP_GET_GLOBAL 1
+16  OP_EXTEND 5 0
+20  OP_DEFINE_GLOBAL 2
+```
 
 **Satisfies** — [EXP-022], [FUN-011], [FUN-015].
 
@@ -2155,6 +3380,26 @@ cannot drift. A String answers only to `Length`, a number only to
 `ToString`, and a Char to NOTHING -- which is what lets an extension take
 one.
 
+**Example**
+
+```algol24
+extension function Twice (N : Integer) : Integer;
+begin
+    Exit N * 2;
+end
+
+var N := 21;
+
+WriteLn (N.Twice ());
+```
+
+```
+12  OP_DEFINE_GLOBAL 1
+14  OP_GET_GLOBAL 1
+16  OP_INVOKE_EXT 5 0 0
+21  OP_PRINT
+```
+
 **Satisfies** — [EXP-022], [FUN-015], [FUN-016]. A member always wins; both
 spellings of an extension call are one call, the receiver counting as the
 argument it is.
@@ -2188,6 +3433,26 @@ member [EXP-022], and the names are arranged against whichever answers.
 so the written names shift up one when it is prepended. Both spellings of an
 extension call are one call, and the receiver counts as the argument it is.
 
+**Example**
+
+```algol24
+extension function Scaled (N : Integer, By : Integer) : Integer;
+begin
+    Exit N * By;
+end
+
+var N := 7;
+
+WriteLn (N.Scaled (By: 3));
+```
+
+```
+14  OP_GET_GLOBAL 1
+16  OP_CONSTANT 5
+18  OP_INVOKE_EXT_NAMED 7 1 0
+23  OP_PRINT
+```
+
 **Satisfies** — [EXP-022], [FUN-015], [FUN-016].
 
 **Raises** — what `OP_INVOKE_EXT` raises, plus what an arrangement raises
@@ -2214,6 +3479,17 @@ Encoding    [ 49 ][ i ]                       2 bytes
 the instructions that follow, each of which leaves it on the stack.
 
 Enumerations are hoisted, as classes and subprograms are [DCL-002].
+
+**Example**
+
+```algol24
+type Colour = (Red, Green);
+```
+
+```
+6  OP_ENUM 3
+8  OP_ENUM_MEMBER 4
+```
 
 **Satisfies** — [ENU-001], [DCL-002].
 
@@ -2254,6 +3530,18 @@ A member renders as its own NAME [ENU-007], and it renders through a
 printed as an instance of the machine's own class while `Str` of it was
 right. Any machine object a program can see needs one.
 
+**Example**
+
+```algol24
+type Colour = (Red, Green);
+```
+
+```
+6  OP_ENUM 3
+8  OP_ENUM_MEMBER 4
+10  OP_DEFINE_GLOBAL 1
+```
+
 **Satisfies** — [ENU-001], [ENU-002], [ENU-007], [ENU-009], [ENU-010].
 
 **Raises** — `Undefined enum member '<name>'.` when a member is later read
@@ -2287,6 +3575,18 @@ path and ask what skips it.
 
 A guest object renders through a `ToString` the host invokes, and without
 one the host says `<Class> instance`.
+
+**Example**
+
+```algol24
+WriteLn ('one line');
+```
+
+```
+6  OP_CONSTANT 3
+8  OP_PRINT
+9  OP_NIL
+```
 
 **Satisfies** — [RT-015].
 
@@ -2341,6 +3641,22 @@ and widens a VALUE to a declared type. Two opcodes a letter apart meaning
 unrelated things is a misreading waiting to happen, and it has happened here
 once already -- inside ten minutes, grepping a disassembly for one and
 matching the other. <!-- reference.sh: not-an-opcode OP_WIDE -->
+
+**Example** — a program that declares three hundred globals, at the moment its
+constant table passes 256. `OP_CONSTANT 255` is two bytes; the index after it
+does not fit in one, so the prefix goes ahead of the same instruction and
+`OP_CONSTANT 256` is three. Nothing else about it changes, which is the whole
+argument for a prefix over a long form per opcode.
+
+```
+1014  OP_CONSTANT 255
+1016  OP_DEFINE_GLOBAL 252
+1018  OP_LONG
+1019  OP_CONSTANT 256
+1022  OP_DEFINE_GLOBAL 253
+```
+
+<!-- reference.sh: example-not-run OP_LONG — three hundred declarations do not fit in an entry -->
 
 **Satisfies** — nothing directly. It is an encoding, not a language feature.
 

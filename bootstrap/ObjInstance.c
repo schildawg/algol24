@@ -48,6 +48,7 @@ static Value i_objinstance(Value v_this, Value *args, int32_t count) {
 
 static Value m_objinstance_init_1_objclass(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -57,7 +58,7 @@ static Value m_objinstance_init_1_objclass(Value v_this, Value *args, int32_t co
     int32_t rh_220 = alg_hold_top;
     (void)(alg_hold(alg_set_property(v_this, "Klass", v_klass)));
     alg_hold_top = rh_220;
-    (void)(alg_hold(alg_set_property(v_this, "Fields", alg_hold(alg_map()))));
+    (void)(alg_hold((q_0 = alg_hold(v_this), alg_set_property(q_0, "Fields", alg_hold(alg_map())))));
     alg_hold_top = rh_220;
     Value ret_1 = alg_nil();
     alg_root_top = rt_base;
@@ -66,6 +67,7 @@ static Value m_objinstance_init_1_objclass(Value v_this, Value *args, int32_t co
 
 static Value m_objinstance_get_1_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -83,17 +85,17 @@ static Value m_objinstance_get_1_token(Value v_this, Value *args, int32_t count)
         return ret_2;
     }
     alg_hold_top = rh_221;
-    if (alg_truthy(alg_hold(alg_invoke(alg_property(v_this, "Fields"), "Contains", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(v_name, "Lexeme"))}, 1))}, 1)))) {
+    if (alg_truthy(alg_hold((q_0 = alg_hold(alg_property(v_this, "Fields")), alg_invoke(q_0, "Contains", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(v_name, "Lexeme"))}, 1))}, 1))))) {
         {
             int32_t rh_222 = alg_hold_top;
-            Value ret_3 = alg_hold(alg_invoke(alg_property(v_this, "Fields"), "Get", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(v_name, "Lexeme"))}, 1))}, 1));
+            Value ret_3 = alg_hold((q_1 = alg_hold(alg_property(v_this, "Fields")), alg_invoke(q_1, "Get", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(v_name, "Lexeme"))}, 1))}, 1)));
             alg_root_top = rt_base;
             return ret_3;
             alg_hold_top = rh_222;
         }
     }
     alg_hold_top = rh_221;
-    (void)((v_method = alg_hold(alg_invoke(alg_property(v_this, "Klass"), "FindMethod", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(v_name, "Lexeme"))}, 1))}, 1))));
+    (void)((v_method = alg_hold((q_2 = alg_hold(alg_property(v_this, "Klass")), alg_invoke(q_2, "FindMethod", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(v_name, "Lexeme"))}, 1))}, 1)))));
     alg_hold_top = rh_221;
     if (alg_truthy(alg_hold(alg_not_equal(v_method, alg_nil())))) {
         Value ret_4 = alg_hold(alg_invoke(v_method, "Bind", (Value[]){v_this}, 1));
@@ -110,6 +112,7 @@ static Value m_objinstance_get_1_token(Value v_this, Value *args, int32_t count)
 
 static Value m_objinstance_getfield_1_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -117,11 +120,11 @@ static Value m_objinstance_getfield_1_token(Value v_this, Value *args, int32_t c
     (void)v_name;
     alg_root(&v_name, 1);
     int32_t rh_223 = alg_hold_top;
-    if (alg_truthy(alg_hold(alg_not(alg_hold(alg_invoke(alg_property(v_this, "Fields"), "Contains", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(v_name, "Lexeme"))}, 1))}, 1)))))) {
+    if (alg_truthy(alg_hold(alg_not(alg_hold((q_0 = alg_hold(alg_property(v_this, "Fields")), alg_invoke(q_0, "Contains", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(v_name, "Lexeme"))}, 1))}, 1))))))) {
         alg_raise(alg_hold(alg_add(alg_hold(alg_add(alg_literal("Undefined property '"), alg_hold(alg_property(v_name, "Lexeme")))), alg_literal("'."))));
     }
     alg_hold_top = rh_223;
-    Value ret_6 = alg_hold(alg_invoke(alg_property(v_this, "Fields"), "Get", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(v_name, "Lexeme"))}, 1))}, 1));
+    Value ret_6 = alg_hold((q_1 = alg_hold(alg_property(v_this, "Fields")), alg_invoke(q_1, "Get", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(v_name, "Lexeme"))}, 1))}, 1)));
     alg_root_top = rt_base;
     return ret_6;
     alg_hold_top = rh_223;
@@ -132,6 +135,7 @@ static Value m_objinstance_getfield_1_token(Value v_this, Value *args, int32_t c
 
 static Value m_objinstance_set_2_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -142,11 +146,11 @@ static Value m_objinstance_set_2_token(Value v_this, Value *args, int32_t count)
     (void)v_value;
     alg_root(&v_value, 1);
     int32_t rh_224 = alg_hold_top;
-    if (alg_truthy(alg_hold(alg_not(alg_hold(alg_invoke(alg_property(v_this, "Fields"), "Contains", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(v_name, "Lexeme"))}, 1))}, 1)))))) {
+    if (alg_truthy(alg_hold(alg_not(alg_hold((q_0 = alg_hold(alg_property(v_this, "Fields")), alg_invoke(q_0, "Contains", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(v_name, "Lexeme"))}, 1))}, 1))))))) {
         alg_raise(alg_hold(alg_add(alg_hold(alg_add(alg_literal("Undefined property '"), alg_hold(alg_property(v_name, "Lexeme")))), alg_literal("'."))));
     }
     alg_hold_top = rh_224;
-    (void)(alg_hold(alg_invoke(alg_property(v_this, "Fields"), "Put", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(v_name, "Lexeme"))}, 1)), v_value}, 2)));
+    (void)(alg_hold((q_1 = alg_hold(alg_property(v_this, "Fields")), q_2 = alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(v_name, "Lexeme"))}, 1)), alg_invoke(q_1, "Put", (Value[]){q_2, v_value}, 2))));
     alg_hold_top = rh_224;
     Value ret_8 = alg_nil();
     alg_root_top = rt_base;
@@ -186,6 +190,7 @@ static Value i_objsingleton(Value v_this, Value *args, int32_t count) {
 
 static Value m_objsingleton_init_2_objclass(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -198,7 +203,7 @@ static Value m_objsingleton_init_2_objclass(Value v_this, Value *args, int32_t c
     int32_t rh_226 = alg_hold_top;
     (void)(alg_hold(alg_set_property(v_this, "Klass", v_klass)));
     alg_hold_top = rh_226;
-    (void)(alg_hold(alg_set_property(v_this, "Fields", alg_hold(alg_map()))));
+    (void)(alg_hold((q_0 = alg_hold(v_this), alg_set_property(q_0, "Fields", alg_hold(alg_map())))));
     alg_hold_top = rh_226;
     (void)(alg_hold(alg_set_property(v_this, "TheInterpreter", v_theinterpreter)));
     alg_hold_top = rh_226;
@@ -209,12 +214,13 @@ static Value m_objsingleton_init_2_objclass(Value v_this, Value *args, int32_t c
 
 static Value m_objsingleton_instance_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
     int32_t rh_227 = alg_hold_top;
     if (alg_truthy(alg_hold(alg_equal(alg_property(v_this, "TheInstance"), alg_nil())))) {
-        (void)(alg_set_property(v_this, "TheInstance", alg_hold(alg_cast_class(alg_invoke(alg_property(v_this, "Klass"), "Call", (Value[]){alg_property(v_this, "TheInterpreter"), alg_hold(alg_list())}, 2), k_objinstance, "ObjInstance"))));
+        (void)(alg_set_property(v_this, "TheInstance", alg_hold(alg_cast_class((q_0 = alg_hold(alg_property(v_this, "Klass")), q_1 = alg_hold(alg_property(v_this, "TheInterpreter")), alg_invoke(q_0, "Call", (Value[]){q_1, alg_hold(alg_list())}, 2)), k_objinstance, "ObjInstance"))));
     }
     alg_hold_top = rh_227;
     Value ret_13 = alg_property(v_this, "TheInstance");
@@ -228,6 +234,7 @@ static Value m_objsingleton_instance_0(Value v_this, Value *args, int32_t count)
 
 static Value m_objsingleton_get_1_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -235,7 +242,7 @@ static Value m_objsingleton_get_1_token(Value v_this, Value *args, int32_t count
     (void)v_name;
     alg_root(&v_name, 1);
     int32_t rh_228 = alg_hold_top;
-    Value ret_15 = alg_hold(alg_invoke(alg_hold(alg_invoke(v_this, "Instance", NULL, 0)), "Get", (Value[]){v_name}, 1));
+    Value ret_15 = alg_hold((q_0 = alg_hold(alg_invoke(v_this, "Instance", NULL, 0)), alg_invoke(q_0, "Get", (Value[]){v_name}, 1)));
     alg_root_top = rt_base;
     return ret_15;
     alg_hold_top = rh_228;
@@ -246,6 +253,7 @@ static Value m_objsingleton_get_1_token(Value v_this, Value *args, int32_t count
 
 static Value m_objsingleton_getfield_1_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -253,7 +261,7 @@ static Value m_objsingleton_getfield_1_token(Value v_this, Value *args, int32_t 
     (void)v_name;
     alg_root(&v_name, 1);
     int32_t rh_229 = alg_hold_top;
-    Value ret_17 = alg_hold(alg_invoke(alg_hold(alg_invoke(v_this, "Instance", NULL, 0)), "GetField", (Value[]){v_name}, 1));
+    Value ret_17 = alg_hold((q_0 = alg_hold(alg_invoke(v_this, "Instance", NULL, 0)), alg_invoke(q_0, "GetField", (Value[]){v_name}, 1)));
     alg_root_top = rt_base;
     return ret_17;
     alg_hold_top = rh_229;
@@ -264,6 +272,7 @@ static Value m_objsingleton_getfield_1_token(Value v_this, Value *args, int32_t 
 
 static Value m_objsingleton_set_2_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -274,7 +283,7 @@ static Value m_objsingleton_set_2_token(Value v_this, Value *args, int32_t count
     (void)v_value;
     alg_root(&v_value, 1);
     int32_t rh_230 = alg_hold_top;
-    (void)(alg_hold(alg_invoke(alg_hold(alg_invoke(v_this, "Instance", NULL, 0)), "Set", (Value[]){v_name, v_value}, 2)));
+    (void)(alg_hold((q_0 = alg_hold(alg_invoke(v_this, "Instance", NULL, 0)), q_1 = alg_hold(v_name), alg_invoke(q_0, "Set", (Value[]){q_1, v_value}, 2))));
     alg_hold_top = rh_230;
     Value ret_19 = alg_nil();
     alg_root_top = rt_base;

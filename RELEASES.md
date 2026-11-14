@@ -14,6 +14,197 @@ go stale.
 
 ---
 
+## v0.4.1 — the three platforms agree, and one of them could not finish a build
+
+No language change, and nothing new to call. This is what a real session on
+Windows and a real session on Linux found, which is a different list from
+anything the harnesses here could produce: every gate was green on macOS the
+whole time.
+
+The shape of it is worth saying once. Three processors had agreed for four
+releases about everything the corpus asks — and the corpus asks on **one
+platform at a time**. Put the same programs on a second C compiler and the
+compiled back end answered differently; put them on a second operating system
+and the runtime read text it had written and nobody else's.
+
+### Operands evaluate left to right in compiled C
+
+The C back end emitted an operation's operands as a function's arguments —
+`alg_add(L, R)`, `alg_invoke(recv, ..., (Value[]){a, b})` — and **C leaves the
+order of those unspecified**. clang went left to right, gcc went right to
+left, so this read the two lines in opposite orders on the two:
+
+```algol24
+var Both := G.ReadLn () + ', ' + G.ReadLn ();
+```
+
+The interpreter and the machine both go left to right, so the language does,
+and the compiled back end now does too — `conformance/0076`, `0175` and `0222`
+are the cases that said so. Where order can matter at all (two non-constant
+operands and at least one that can call, assign or raise) every operand but
+the last is evaluated into a temporary through a comma expression, which C
+*does* sequence. Applied to binary operators, every call path, subscript get
+and set, member set and both collection-literal forms, a compound literal's
+initializers being as unordered as a call's arguments.
+
+⚠️ **The emitter had been depending on the C compiler that built it.** The old
+seed numbered its own temporaries in whatever order gcc evaluated an
+expression, which is why reseeding took three generations to settle; from this
+seed it takes two. Measured on Windows at `Fib (32)` compiled, ten interleaved
+runs each: 341 ms with the change against 347 without, a difference narrower
+than either spread.
+
+### Every path and argument goes wide on Windows
+
+The runtime's narrow calls decode by the **ANSI code page** where the
+language's text is UTF-8 [SRC-002]. So `TextFile ('café.txt')` opened a file
+nobody had named, `GetDir` answered a non-ASCII directory mangled, `Entries`
+listed names in a code page the program could not read — and before any of
+that, `main`'s own `argv` was already decoded, so `algc café.a24` asked for a
+file that did not exist and `ParamStr` answered text never passed.
+
+One set of wrappers widens once and calls the W form: `TextFile`'s open,
+`Erase`, `Rename`, `MkDir`, `RmDir`, `ChDir`, `GetDir`, `Entries`,
+`FileExists`, the program's own path — which is how an installed unit is found
+[MOD-002] — and `dlopen`. `argv` is rebuilt from the wide command line,
+reached through `LoadLibrary` rather than linked, because naming `shell32`
+would add a library to every documented link line.
+
+⚠️ **A ROUND TRIP INSIDE THE RUNTIME COULD NOT HAVE CAUGHT THIS.** Mangling
+every name the same way, it finds and lists its own files perfectly. What
+showed it was a name written by something else — `git`.
+
+### A raise crashed one time in five
+
+mingw-w64 spells `setjmp(b)` as `_setjmp(b, __builtin_frame_address(0))`, and
+a non-null frame makes `longjmp` unwind through `RtlUnwind` instead of
+restoring registers. That walk faulted on 10 of 50 runs of
+`conformance/0155` at `-O2` — never at `-O0`, never under a debugger, which
+turns ASLR off, and only on cases that raise. The non-unwinding form is what
+the header itself picks under its own non-SEH switch, and it is what
+`_setjmp`/`_longjmp` already mean on the BSDs and glibc. Nothing here relies
+on the unwind: no C++ frames and no `__try`.
+
+### Three smaller things, each where it lives
+
+| | |
+| --- | --- |
+| **stdout was in text mode** on Windows, so every `#10` left as CRLF — against [RT-015] and [RT-030], which name the character and never the host's separator. Both output streams are binary now; **stdin stays text**, where the translation is what hands `ReadLn` a bare newline. |
+| **`GetDir` answers `/` on every host**, so `C:/work/here` rather than `C:\work\here`: a program joins with `GetDir () + '/' + Name`, and two separators in one path compare unequal to a path the program built itself. [RT-026] says so now. |
+| **`Foreign` takes the Lists a program built.** The built-in handed the runtime two *guest* Lists where it reads a host sequence, so the count came from whatever field sat at that offset. On macOS that happened to exceed eight and the call was refused; on Windows it moved with ASLR, so one program answered two ways run to run. DEF-37, promoted to `conformance/0225`. |
+
+### The export probe hung the Linux build
+
+`./vm/build.sh` did not finish on Linux at all, and that is why the twelve
+gates had never run there. The probe that finds the flag making a binary's own
+symbols reachable tried Apple's `-export_dynamic` second; **GNU ld reads that
+as `-e xport_dynamic`**, the entry symbol. It warns, links anyway, and the
+executable begins in the middle of nothing and spins. The working spelling sat
+one place later and was never reached.
+
+A crash the probe already caught, by calling through the pointer rather than
+checking for NULL; a silence it already caught, by comparing printed output. A
+**hang** was the third way, and output cannot catch it. The ELF spelling goes
+first now, and a link that names an entry symbol is refused however it is
+spelled.
+
+### Two things only Linux could show
+
+Both are about reaching a *foreign* library, which is why four releases missed
+them: every conformance run is a build without libffi [INI-008], so the corpus
+opens no library at all and `./installed.sh` is the only gate that can ask.
+
+**A shim is found in the working directory** [FUN-017]. A unit is found there
+[MOD-002] and its shim was not, so a program run from the directory holding
+both resolved the `uses` and failed its first foreign call — one place short of
+the half-measure that rule exists to end, and the shape a library is *developed*
+in. macOS and Windows hid it by searching the current directory in their own
+loaders; Linux does not, and the library's whole suite failed at its first unit.
+
+⚠️ **It is last of the places searched rather than second**, where [MOD-002]
+puts it for a unit. Second would change which file an existing program opens;
+last can only turn a failure into a success — the two platforms that already
+searched it find the same file one step earlier, and the one that did not now
+finds it at all. The rule records the asymmetry that leaves.
+
+**A bare-named `external` reaches libm.** `external 'atan'` with no `in` clause
+resolves from the running program, which on macOS means libSystem and has
+always carried math. On Linux libm is a library of its own, and nothing in the
+runtime called it — so `--as-needed`, the default on Ubuntu, dropped an
+unreferenced `-lm` and left the symbol in no loaded object at all. The runtime
+holds a reference under `ALG_FFI` now, which is C rather than a GNU-only linker
+flag.
+
+⚠️ **A `-DALG_FFI` LINK MUST PASS `-lm`**, and fails naming `atan` if it does
+not — which is better than linking and answering `No foreign symbol` at the
+call. The default build is untouched, so `cc -std=c11 -O2 -o DIR/prog DIR/*.c`
+still needs nothing but a C compiler.
+
+**And a shim linked *into* a program needs the program to export its own
+symbols.** No library name means the running program [FUN-014], and an
+executable's symbols do not enter the table a by-name lookup searches unless it
+was linked to export them — `-rdynamic` on ELF, `--export-all-symbols` on PE,
+nothing on Mach-O. A self-contained application otherwise builds and answers
+`No foreign symbol` at its first call, on Linux alone.
+
+[FUN-014] says so now, and names the limit plainly: it is the one rule in the
+specification that can be satisfied or not by how a *correct* program is
+**built**. There is no runtime answer — `dlopen(NULL, RTLD_GLOBAL)` succeeds
+and `dlsym` on that handle still does not find the symbol, so only the link can
+put it there. `./installed.sh` holds both halves of that requirement now, in
+one check that links a shim in and calls a bare `external 'atan'` beside it.
+
+### End-of-line conversion was passing by accident
+
+`collector/**` is held byte-exact in `.gitattributes`, as `conformance/`,
+`refusals/` and `defects/` already were. Git for Windows checks out with
+autocrlf, so those recorded outputs had CRLF — and matched, because text-mode
+stdout was adding the same character. Fixing the streams made seven of eight
+cases "fail" on bytes nobody could see. Two wrongs agreeing, found from the
+other side.
+
+### Every opcode's entry carries a worked example
+
+`vm/REFERENCE.md` is the opcode reference, written toward an assembly-like front
+end that would make the mnemonics user-facing syntax. Each of its entries now
+carries one example: a whole program, and the window of `algvm --list` where
+that instruction appears, as the disassembler prints it.
+
+They are not transcribed. `./vm/reference.sh` writes each program out, lists it,
+and requires the window back contiguously and in order — so eighty hand-copied
+disassemblies cannot quietly drift the first time the emitter changes.
+`./vm/reference.sh --examples` rewrites every window from live output, which is
+what makes the check affordable: an emitter change moves most of the offsets at
+once, and a check whose repair is seventy-six hand edits is a check that gets
+deleted. Of the eighty, **76 run** and are compared against the machine; four
+say they are not, because the only program that reaches them declares three
+hundred globals.
+
+### Upgrading
+
+Nothing to change, and one thing to know: **a compiled program's operands now
+evaluate in the order they are written.** If a program has two side effects in
+one expression and was built with a right-to-left C compiler, it changes
+answer — to the one the interpreter and the machine always gave.
+
+⚠️ **Both halves of the runtime move together.** `algol.c` and `algol.h` are
+hand-written and copied verbatim by `--compile`, and the body uses what the
+header declares. Anything assembling a build from both a compiler's output and
+a checkout of the compiler must take the pair from one release;
+`ALG_RUNTIME_VERSION` is what makes a mismatch one line of diagnostic.
+
+⚠️ **A build that calls into C now links `-lm`.** Anything with its own link
+line for a `-DALG_FFI` build — a packaging script, a self-contained example —
+adds `-lm` beside `-lffi`, or the link fails naming `atan`. The five in this
+repository pass it already.
+
+**The bundle moves too.** `algol24-vm` carries `algol24-library` 0.3.1 — 0.3.0
+being that library's own Windows release, and 0.3.1 the `-lm` and `-rdynamic`
+its link lines need for the two build requirements named above. Its number is
+its own and does not track this one.
+
+---
+
 ## v0.4.0 — a program can list a directory, and a library's shims are found where its units are
 
 Two features, both asked for by a project using the language, and both of them

@@ -22,6 +22,7 @@ static const char *t_f_testtotals[] = { "Passed : Integer", "Failed : Integer" }
 
 Value f_testopening(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    Value q_0;
     alg_arity(count, 1);
     int32_t rt_base = alg_root_top;
     alg_root(args, count);
@@ -29,7 +30,7 @@ Value f_testopening(Value **cells, Value *args, int32_t count) {
     (void)v_count;
     alg_root(&v_count, 1);
     int32_t rh_199 = alg_hold_top;
-    Value ret_0 = alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add((alg_declared(d_infoVtag, "INFO_TAG"), v_infoVtag), alg_literal("Running "))), alg_hold(alg_str(v_count)))), alg_literal(" tests...")));
+    Value ret_0 = alg_hold(alg_add(alg_hold((q_0 = alg_hold(alg_add((alg_declared(d_infoVtag, "INFO_TAG"), v_infoVtag), alg_literal("Running "))), alg_add(q_0, alg_hold(alg_str(v_count))))), alg_literal(" tests...")));
     alg_root_top = rt_base;
     return ret_0;
     alg_hold_top = rh_199;
@@ -40,6 +41,7 @@ Value f_testopening(Value **cells, Value *args, int32_t count) {
 
 Value f_testbanner(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    Value q_0, q_1, q_2;
     alg_arity(count, 1);
     int32_t rt_base = alg_root_top;
     alg_root(args, count);
@@ -47,7 +49,7 @@ Value f_testbanner(Value **cells, Value *args, int32_t count) {
     (void)v_file;
     alg_root(&v_file, 1);
     int32_t rh_200 = alg_hold_top;
-    Value ret_2 = alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add((alg_declared(d_infoVtag, "INFO_TAG"), v_infoVtag), alg_literal("< "))), (alg_declared(d_ansiVcyan, "ANSI_CYAN"), v_ansiVcyan))), v_file)), (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset))), alg_literal(" >")));
+    Value ret_2 = alg_hold(alg_add(alg_hold((q_2 = alg_hold((q_1 = alg_hold((q_0 = alg_hold(alg_add((alg_declared(d_infoVtag, "INFO_TAG"), v_infoVtag), alg_literal("< "))), alg_add(q_0, (alg_declared(d_ansiVcyan, "ANSI_CYAN"), v_ansiVcyan)))), alg_add(q_1, v_file))), alg_add(q_2, (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset)))), alg_literal(" >")));
     alg_root_top = rt_base;
     return ret_2;
     alg_hold_top = rh_200;
@@ -58,6 +60,7 @@ Value f_testbanner(Value **cells, Value *args, int32_t count) {
 
 Value f_testline(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3, q_4, q_5;
     alg_arity(count, 2);
     int32_t rt_base = alg_root_top;
     alg_root(args, count);
@@ -72,7 +75,7 @@ Value f_testline(Value **cells, Value *args, int32_t count) {
     (void)v_dots;
     alg_root(&v_dots, 1);
     alg_hold_top = rh_201;
-    (void)((v_dots = alg_hold(alg_subtract((alg_declared(d_leaderVwidth, "LEADER_WIDTH"), v_leaderVwidth), alg_hold(alg_text_length(v_name))))));
+    (void)((v_dots = alg_hold((q_0 = alg_hold((alg_declared(d_leaderVwidth, "LEADER_WIDTH"), v_leaderVwidth)), alg_subtract(q_0, alg_hold(alg_text_length(v_name)))))));
     alg_hold_top = rh_201;
     if (alg_truthy(alg_hold(alg_less(v_dots, alg_int(1))))) {
         (void)((v_dots = alg_int(1)));
@@ -108,7 +111,7 @@ Value f_testline(Value **cells, Value *args, int32_t count) {
         (void)((v_tint = (alg_declared(d_ansiVred, "ANSI_RED"), v_ansiVred)));
     }
     alg_hold_top = rh_201;
-    Value ret_4 = alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add((alg_declared(d_infoVtag, "INFO_TAG"), v_infoVtag), alg_literal("Test: "))), v_name)), alg_char_value(32))), v_leader)), alg_literal(" [ "))), v_tint)), v_status)), (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset))), alg_literal(" ]")));
+    Value ret_4 = alg_hold(alg_add(alg_hold((q_5 = alg_hold((q_4 = alg_hold((q_3 = alg_hold(alg_add(alg_hold((q_2 = alg_hold(alg_add(alg_hold((q_1 = alg_hold(alg_add((alg_declared(d_infoVtag, "INFO_TAG"), v_infoVtag), alg_literal("Test: "))), alg_add(q_1, v_name))), alg_char_value(32))), alg_add(q_2, v_leader))), alg_literal(" [ "))), alg_add(q_3, v_tint))), alg_add(q_4, v_status))), alg_add(q_5, (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset)))), alg_literal(" ]")));
     alg_root_top = rt_base;
     return ret_4;
     alg_hold_top = rh_201;
@@ -119,6 +122,7 @@ Value f_testline(Value **cells, Value *args, int32_t count) {
 
 Value f_testfailure(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    Value q_0;
     alg_arity(count, 2);
     int32_t rt_base = alg_root_top;
     alg_root(args, count);
@@ -129,7 +133,7 @@ Value f_testfailure(Value **cells, Value *args, int32_t count) {
     (void)v_said;
     alg_root(&v_said, 1);
     int32_t rh_205 = alg_hold_top;
-    Value ret_6 = alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add((alg_declared(d_errorVtag, "ERROR_TAG"), v_errorVtag), v_rootfile)), alg_literal(": "))), v_said));
+    Value ret_6 = alg_hold((q_0 = alg_hold(alg_add(alg_hold(alg_add((alg_declared(d_errorVtag, "ERROR_TAG"), v_errorVtag), v_rootfile)), alg_literal(": "))), alg_add(q_0, v_said)));
     alg_root_top = rt_base;
     return ret_6;
     alg_hold_top = rh_205;
@@ -140,6 +144,7 @@ Value f_testfailure(Value **cells, Value *args, int32_t count) {
 
 Value f_testtotals(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3, q_4;
     alg_arity(count, 2);
     int32_t rt_base = alg_root_top;
     alg_root(args, count);
@@ -151,12 +156,12 @@ Value f_testtotals(Value **cells, Value *args, int32_t count) {
     alg_root(&v_failed, 1);
     int32_t rh_206 = alg_hold_top;
     if (alg_truthy(alg_hold(alg_equal(v_failed, alg_int(0))))) {
-        Value ret_8 = alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add((alg_declared(d_infoVtag, "INFO_TAG"), v_infoVtag), (alg_declared(d_ansiVgreen, "ANSI_GREEN"), v_ansiVgreen))), alg_literal("All "))), alg_hold(alg_str(v_passed)))), alg_literal(" tests passed."))), (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset)));
+        Value ret_8 = alg_hold((q_1 = alg_hold(alg_add(alg_hold((q_0 = alg_hold(alg_add(alg_hold(alg_add((alg_declared(d_infoVtag, "INFO_TAG"), v_infoVtag), (alg_declared(d_ansiVgreen, "ANSI_GREEN"), v_ansiVgreen))), alg_literal("All "))), alg_add(q_0, alg_hold(alg_str(v_passed))))), alg_literal(" tests passed."))), alg_add(q_1, (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset))));
         alg_root_top = rt_base;
         return ret_8;
     }
     alg_hold_top = rh_206;
-    Value ret_9 = alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add((alg_declared(d_infoVtag, "INFO_TAG"), v_infoVtag), (alg_declared(d_ansiVred, "ANSI_RED"), v_ansiVred))), alg_hold(alg_str(v_failed)))), alg_literal(" of "))), alg_hold(alg_str(alg_hold(alg_add(v_passed, v_failed)))))), alg_literal(" tests failed."))), (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset)));
+    Value ret_9 = alg_hold((q_4 = alg_hold(alg_add(alg_hold((q_3 = alg_hold(alg_add(alg_hold((q_2 = alg_hold(alg_add((alg_declared(d_infoVtag, "INFO_TAG"), v_infoVtag), (alg_declared(d_ansiVred, "ANSI_RED"), v_ansiVred))), alg_add(q_2, alg_hold(alg_str(v_failed))))), alg_literal(" of "))), alg_add(q_3, alg_hold(alg_str(alg_hold(alg_add(v_passed, v_failed))))))), alg_literal(" tests failed."))), alg_add(q_4, (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset))));
     alg_root_top = rt_base;
     return ret_9;
     alg_hold_top = rh_206;

@@ -60,6 +60,7 @@ static const char *t_scanner_isdigit_1_char[] = { "C : Char" };
 
 Value f_tointeger(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    Value q_0, q_1, q_2;
     alg_arity(count, 1);
     int32_t rt_base = alg_root_top;
     alg_root(args, count);
@@ -80,9 +81,9 @@ Value f_tointeger(Value **cells, Value *args, int32_t count) {
         alg_hold_top = rh_127;
         {
             int32_t rh_128 = alg_hold_top;
-            for (; (alg_hold_top = rh_128, alg_truthy(alg_hold(alg_less(v_i, alg_hold(alg_text_length(v_text)))))); (alg_hold_top = rh_128, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
+            for (; (alg_hold_top = rh_128, alg_truthy(alg_hold((q_0 = alg_hold(v_i), alg_less(q_0, alg_hold(alg_text_length(v_text))))))); (alg_hold_top = rh_128, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
                 alg_safe_point();
-                (void)((v_result = alg_hold(alg_add(alg_hold(alg_multiply(v_result, alg_int(10))), alg_hold(alg_pos((alg_declared(d_digits, "DIGITS"), v_digits), alg_hold(alg_copy(v_text, v_i, alg_int(1)))))))));
+                (void)((v_result = alg_hold((q_2 = alg_hold(alg_multiply(v_result, alg_int(10))), alg_add(q_2, alg_hold((q_1 = alg_hold((alg_declared(d_digits, "DIGITS"), v_digits)), alg_pos(q_1, alg_hold(alg_copy(v_text, v_i, alg_int(1)))))))))));
             }
         }
         alg_hold_top = rh_127;
@@ -100,6 +101,7 @@ Value f_tointeger(Value **cells, Value *args, int32_t count) {
 
 Value f_toradix(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3;
     alg_arity(count, 2);
     int32_t rt_base = alg_root_top;
     alg_root(args, count);
@@ -123,9 +125,9 @@ Value f_toradix(Value **cells, Value *args, int32_t count) {
         alg_hold_top = rh_131;
         {
             int32_t rh_132 = alg_hold_top;
-            for (; (alg_hold_top = rh_132, alg_truthy(alg_hold(alg_less(v_i, alg_hold(alg_text_length(v_text)))))); (alg_hold_top = rh_132, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
+            for (; (alg_hold_top = rh_132, alg_truthy(alg_hold((q_0 = alg_hold(v_i), alg_less(q_0, alg_hold(alg_text_length(v_text))))))); (alg_hold_top = rh_132, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
                 alg_safe_point();
-                (void)((v_result = alg_hold(alg_add(alg_hold(alg_multiply(v_result, alg_hold(alg_text_length(v_alphabet)))), alg_hold(alg_pos(v_alphabet, alg_hold(alg_to_lower(alg_hold(alg_copy(v_text, v_i, alg_int(1)))))))))));
+                (void)((v_result = alg_hold((q_3 = alg_hold((q_1 = alg_hold(v_result), alg_multiply(q_1, alg_hold(alg_text_length(v_alphabet))))), alg_add(q_3, alg_hold((q_2 = alg_hold(v_alphabet), alg_pos(q_2, alg_hold(alg_to_lower(alg_hold(alg_copy(v_text, v_i, alg_int(1)))))))))))));
             }
         }
         alg_hold_top = rh_131;
@@ -158,6 +160,7 @@ static Value i_scanner(Value v_this, Value *args, int32_t count) {
 
 static Value m_scanner_init_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -165,7 +168,7 @@ static Value m_scanner_init_1(Value v_this, Value *args, int32_t count) {
     (void)v_source;
     alg_root(&v_source, 1);
     int32_t rh_133 = alg_hold_top;
-    (void)(alg_hold(alg_set_property(v_this, "Source", alg_hold(alg_str(v_source)))));
+    (void)(alg_hold((q_0 = alg_hold(v_this), alg_set_property(q_0, "Source", alg_hold(alg_str(v_source))))));
     alg_hold_top = rh_133;
     (void)(alg_hold(alg_set_property(v_this, "Current", alg_int(0))));
     alg_hold_top = rh_133;
@@ -175,7 +178,7 @@ static Value m_scanner_init_1(Value v_this, Value *args, int32_t count) {
     alg_hold_top = rh_133;
     (void)(alg_hold(alg_set_property(v_this, "LineStart", alg_int(0))));
     alg_hold_top = rh_133;
-    (void)(alg_hold(alg_set_property(v_this, "Tokens", alg_hold(alg_list()))));
+    (void)(alg_hold((q_1 = alg_hold(v_this), alg_set_property(q_1, "Tokens", alg_hold(alg_list())))));
     alg_hold_top = rh_133;
     Value ret_4 = alg_nil();
     alg_root_top = rt_base;
@@ -184,6 +187,7 @@ static Value m_scanner_init_1(Value v_this, Value *args, int32_t count) {
 
 static Value m_scanner_init_2_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -194,7 +198,7 @@ static Value m_scanner_init_2_string(Value v_this, Value *args, int32_t count) {
     (void)v_filename;
     alg_root(&v_filename, 1);
     int32_t rh_134 = alg_hold_top;
-    (void)(alg_hold(alg_set_property(v_this, "Source", alg_hold(alg_str(v_source)))));
+    (void)(alg_hold((q_0 = alg_hold(v_this), alg_set_property(q_0, "Source", alg_hold(alg_str(v_source))))));
     alg_hold_top = rh_134;
     (void)(alg_hold(alg_set_property(v_this, "Current", alg_int(0))));
     alg_hold_top = rh_134;
@@ -206,7 +210,7 @@ static Value m_scanner_init_2_string(Value v_this, Value *args, int32_t count) {
     alg_hold_top = rh_134;
     (void)(alg_hold(alg_set_property(v_this, "FileName", v_filename)));
     alg_hold_top = rh_134;
-    (void)(alg_hold(alg_set_property(v_this, "Tokens", alg_hold(alg_list()))));
+    (void)(alg_hold((q_1 = alg_hold(v_this), alg_set_property(q_1, "Tokens", alg_hold(alg_list())))));
     alg_hold_top = rh_134;
     Value ret_5 = alg_nil();
     alg_root_top = rt_base;
@@ -215,6 +219,7 @@ static Value m_scanner_init_2_string(Value v_this, Value *args, int32_t count) {
 
 static Value m_scanner_scantokens_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3, q_4, q_5;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -233,7 +238,7 @@ static Value m_scanner_scantokens_0(Value v_this, Value *args, int32_t count) {
         }
     }
     alg_hold_top = rh_135;
-    (void)(alg_hold(alg_invoke(alg_singleton(k_sourcecode), "Add", (Value[]){alg_property(v_this, "FileName"), alg_property(v_this, "Line"), alg_hold(alg_copy(alg_property(v_this, "Source"), alg_property(v_this, "LineStart"), alg_hold(alg_subtract(alg_hold(alg_text_length(alg_property(v_this, "Source"))), alg_property(v_this, "LineStart")))))}, 3)));
+    (void)(alg_hold((q_3 = alg_hold(alg_singleton(k_sourcecode)), q_4 = alg_hold(alg_property(v_this, "FileName")), q_5 = alg_hold(alg_property(v_this, "Line")), alg_invoke(q_3, "Add", (Value[]){q_4, q_5, alg_hold((q_1 = alg_hold(alg_property(v_this, "Source")), q_2 = alg_hold(alg_property(v_this, "LineStart")), alg_copy(q_1, q_2, alg_hold((q_0 = alg_hold(alg_text_length(alg_property(v_this, "Source"))), alg_subtract(q_0, alg_property(v_this, "LineStart")))))))}, 3))));
     alg_hold_top = rh_135;
     Value v_theend = alg_hold(alg_new(k_token, (Value[]){e_tokentype_eof, alg_literal(""), alg_nil(), alg_property(v_this, "Line")}, 4));
     (void)v_theend;
@@ -254,6 +259,7 @@ static Value m_scanner_scantokens_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_scanner_scantoken_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3, q_4, q_5;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -367,7 +373,7 @@ static Value m_scanner_scantoken_0(Value v_this, Value *args, int32_t count) {
                                                                                     if (alg_truthy(alg_hold(alg_equal(v_c, alg_char_value(10))))) {
                                                                                         {
                                                                                             int32_t rh_140 = alg_hold_top;
-                                                                                            (void)(alg_hold(alg_invoke(alg_singleton(k_sourcecode), "Add", (Value[]){alg_property(v_this, "FileName"), alg_property(v_this, "Line"), alg_hold(alg_copy(alg_property(v_this, "Source"), alg_property(v_this, "LineStart"), alg_hold(alg_subtract(alg_hold(alg_subtract(alg_property(v_this, "Current"), alg_property(v_this, "LineStart"))), alg_int(1)))))}, 3)));
+                                                                                            (void)(alg_hold((q_2 = alg_hold(alg_singleton(k_sourcecode)), q_3 = alg_hold(alg_property(v_this, "FileName")), q_4 = alg_hold(alg_property(v_this, "Line")), alg_invoke(q_2, "Add", (Value[]){q_3, q_4, alg_hold((q_0 = alg_hold(alg_property(v_this, "Source")), q_1 = alg_hold(alg_property(v_this, "LineStart")), alg_copy(q_0, q_1, alg_hold(alg_subtract(alg_hold(alg_subtract(alg_property(v_this, "Current"), alg_property(v_this, "LineStart"))), alg_int(1))))))}, 3))));
                                                                                             alg_hold_top = rh_140;
                                                                                             (void)(alg_set_property(v_this, "Line", alg_hold(alg_add(alg_property(v_this, "Line"), alg_int(1)))));
                                                                                             alg_hold_top = rh_140;
@@ -395,7 +401,7 @@ static Value m_scanner_scantoken_0(Value v_this, Value *args, int32_t count) {
                                                                                                             int32_t rh_141 = alg_hold_top;
                                                                                                             (void)((alg_declared(d_haderror, "HadError"), (v_haderror = alg_bool(true))));
                                                                                                             alg_hold_top = rh_141;
-                                                                                                            (void)((alg_declared(d_lasterror, "LastError"), (v_lasterror = alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_literal("[line "), alg_property(v_this, "Line"))), alg_literal("] Error: Unexpected character: "))), v_c)))));
+                                                                                                            (void)((alg_declared(d_lasterror, "LastError"), (v_lasterror = alg_hold((q_5 = alg_hold(alg_add(alg_hold(alg_add(alg_literal("[line "), alg_property(v_this, "Line"))), alg_literal("] Error: Unexpected character: "))), alg_add(q_5, v_c))))));
                                                                                                             alg_hold_top = rh_141;
                                                                                                         }
                                                                                                     }
@@ -431,6 +437,7 @@ static Value m_scanner_scantoken_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_scanner_scanidentifier_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -451,7 +458,7 @@ static Value m_scanner_scanidentifier_0(Value v_this, Value *args, int32_t count
         }
     }
     alg_hold_top = rh_142;
-    (void)((v_text = alg_hold(alg_copy(alg_property(v_this, "Source"), alg_property(v_this, "Start"), alg_hold(alg_subtract(alg_property(v_this, "Current"), alg_property(v_this, "Start")))))));
+    (void)((v_text = alg_hold((q_0 = alg_hold(alg_property(v_this, "Source")), q_1 = alg_hold(alg_property(v_this, "Start")), alg_copy(q_0, q_1, alg_hold(alg_subtract(alg_property(v_this, "Current"), alg_property(v_this, "Start"))))))));
     alg_hold_top = rh_142;
     (void)((v_typeoftoken = e_tokentype_tokenVidentifier));
     alg_hold_top = rh_142;
@@ -476,6 +483,7 @@ static Value m_scanner_scanidentifier_0(Value v_this, Value *args, int32_t count
 
 static Value m_scanner_scannumber_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3, q_4, q_5;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -524,7 +532,7 @@ static Value m_scanner_scannumber_0(Value v_this, Value *args, int32_t count) {
     alg_hold_top = rh_145;
     (void)((v_digits = alg_hold(alg_str(alg_hold(alg_subscript_get(alg_property(v_this, "Source"), alg_property(v_this, "Start")))))));
     alg_hold_top = rh_145;
-    (void)((v_digits = alg_hold(alg_add(v_digits, alg_hold(alg_invoke(v_this, "ScanDigits", NULL, 0))))));
+    (void)((v_digits = alg_hold((q_0 = alg_hold(v_digits), alg_add(q_0, alg_hold(alg_invoke(v_this, "ScanDigits", NULL, 0)))))));
     alg_hold_top = rh_145;
     if (alg_truthy(alg_hold((or_8 = alg_hold(alg_equal(alg_hold(alg_invoke(v_this, "Peek", NULL, 0)), alg_char_value(46))), !alg_truthy(or_8) ? or_8 : alg_hold(alg_invoke(v_this, "IsDigit", (Value[]){alg_hold(alg_invoke(v_this, "PeekNext", NULL, 0))}, 1)))))) {
         {
@@ -533,7 +541,7 @@ static Value m_scanner_scannumber_0(Value v_this, Value *args, int32_t count) {
             alg_hold_top = rh_148;
             (void)(alg_hold(alg_invoke(v_this, "Advance", NULL, 0)));
             alg_hold_top = rh_148;
-            (void)((v_digits = alg_hold(alg_add(alg_hold(alg_add(v_digits, alg_char_value(46))), alg_hold(alg_invoke(v_this, "ScanDigits", NULL, 0))))));
+            (void)((v_digits = alg_hold((q_1 = alg_hold(alg_add(v_digits, alg_char_value(46))), alg_add(q_1, alg_hold(alg_invoke(v_this, "ScanDigits", NULL, 0)))))));
             alg_hold_top = rh_148;
         }
     }
@@ -551,14 +559,14 @@ static Value m_scanner_scannumber_0(Value v_this, Value *args, int32_t count) {
                 if (alg_truthy(alg_hold((or_10 = alg_hold(alg_equal(alg_hold(alg_invoke(v_this, "Peek", NULL, 0)), alg_char_value(43))), alg_truthy(or_10) ? or_10 : alg_hold(alg_equal(alg_hold(alg_invoke(v_this, "Peek", NULL, 0)), alg_char_value(45))))))) {
                     {
                         int32_t rh_150 = alg_hold_top;
-                        (void)((v_digits = alg_hold(alg_add(v_digits, alg_hold(alg_str(alg_hold(alg_invoke(v_this, "Peek", NULL, 0))))))));
+                        (void)((v_digits = alg_hold((q_2 = alg_hold(v_digits), alg_add(q_2, alg_hold(alg_str(alg_hold(alg_invoke(v_this, "Peek", NULL, 0)))))))));
                         alg_hold_top = rh_150;
                         (void)(alg_hold(alg_invoke(v_this, "Advance", NULL, 0)));
                         alg_hold_top = rh_150;
                     }
                 }
                 alg_hold_top = rh_149;
-                (void)((v_digits = alg_hold(alg_add(v_digits, alg_hold(alg_invoke(v_this, "ScanDigits", NULL, 0))))));
+                (void)((v_digits = alg_hold((q_3 = alg_hold(v_digits), alg_add(q_3, alg_hold(alg_invoke(v_this, "ScanDigits", NULL, 0)))))));
                 alg_hold_top = rh_149;
             }
         }
@@ -567,11 +575,11 @@ static Value m_scanner_scannumber_0(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(v_isinteger)) {
         {
             int32_t rh_151 = alg_hold_top;
-            (void)(alg_hold(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVinteger, alg_hold(f_tointeger(NULL, (Value[]){v_digits}, 1))}, 2)));
+            (void)(alg_hold((q_4 = alg_hold(e_tokentype_tokenVinteger), alg_invoke(v_this, "AddToken", (Value[]){q_4, alg_hold(f_tointeger(NULL, (Value[]){v_digits}, 1))}, 2))));
             alg_hold_top = rh_151;
         }
     } else {
-        (void)(alg_hold(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVnumber, alg_hold(alg_val(v_digits))}, 2)));
+        (void)(alg_hold((q_5 = alg_hold(e_tokentype_tokenVnumber), alg_invoke(v_this, "AddToken", (Value[]){q_5, alg_hold(alg_val(v_digits))}, 2))));
     }
     alg_hold_top = rh_145;
     Value ret_14 = alg_nil();
@@ -581,6 +589,7 @@ static Value m_scanner_scannumber_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_scanner_scandigits_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -600,7 +609,7 @@ static Value m_scanner_scandigits_0(Value v_this, Value *args, int32_t count) {
                 if (alg_truthy(alg_hold(alg_invoke(v_this, "IsDigit", (Value[]){alg_hold(alg_invoke(v_this, "Peek", NULL, 0))}, 1)))) {
                     {
                         int32_t rh_155 = alg_hold_top;
-                        (void)((v_digits = alg_hold(alg_add(v_digits, alg_hold(alg_str(alg_hold(alg_invoke(v_this, "Peek", NULL, 0))))))));
+                        (void)((v_digits = alg_hold((q_0 = alg_hold(v_digits), alg_add(q_0, alg_hold(alg_str(alg_hold(alg_invoke(v_this, "Peek", NULL, 0)))))))));
                         alg_hold_top = rh_155;
                         (void)(alg_hold(alg_invoke(v_this, "Advance", NULL, 0)));
                         alg_hold_top = rh_155;
@@ -630,6 +639,7 @@ static Value m_scanner_scandigits_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_scanner_scanradix_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -649,21 +659,21 @@ static Value m_scanner_scanradix_1_string(Value v_this, Value *args, int32_t cou
             alg_safe_point();
             {
                 int32_t rh_158 = alg_hold_top;
-                if (alg_truthy(alg_hold(alg_invoke(v_this, "InAlphabet", (Value[]){v_alphabet, alg_hold(alg_invoke(v_this, "Peek", NULL, 0))}, 2)))) {
+                if (alg_truthy(alg_hold((q_0 = alg_hold(v_alphabet), alg_invoke(v_this, "InAlphabet", (Value[]){q_0, alg_hold(alg_invoke(v_this, "Peek", NULL, 0))}, 2))))) {
                     {
                         int32_t rh_159 = alg_hold_top;
-                        (void)((v_digits = alg_hold(alg_add(v_digits, alg_hold(alg_str(alg_hold(alg_invoke(v_this, "Peek", NULL, 0))))))));
+                        (void)((v_digits = alg_hold((q_1 = alg_hold(v_digits), alg_add(q_1, alg_hold(alg_str(alg_hold(alg_invoke(v_this, "Peek", NULL, 0)))))))));
                         alg_hold_top = rh_159;
                         (void)(alg_hold(alg_invoke(v_this, "Advance", NULL, 0)));
                         alg_hold_top = rh_159;
                     }
                 } else {
-                    if (alg_truthy(alg_hold((or_12 = alg_hold(alg_equal(alg_hold(alg_invoke(v_this, "Peek", NULL, 0)), alg_char_value(95))), !alg_truthy(or_12) ? or_12 : alg_hold(alg_invoke(v_this, "InAlphabet", (Value[]){v_alphabet, alg_hold(alg_invoke(v_this, "PeekNext", NULL, 0))}, 2)))))) {
+                    if (alg_truthy(alg_hold((or_12 = alg_hold(alg_equal(alg_hold(alg_invoke(v_this, "Peek", NULL, 0)), alg_char_value(95))), !alg_truthy(or_12) ? or_12 : alg_hold((q_2 = alg_hold(v_alphabet), alg_invoke(v_this, "InAlphabet", (Value[]){q_2, alg_hold(alg_invoke(v_this, "PeekNext", NULL, 0))}, 2))))))) {
                         (void)(alg_hold(alg_invoke(v_this, "Advance", NULL, 0)));
                     } else {
                         {
                             int32_t rh_160 = alg_hold_top;
-                            (void)(alg_hold(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVinteger, alg_hold(f_toradix(NULL, (Value[]){v_digits, v_alphabet}, 2))}, 2)));
+                            (void)(alg_hold((q_3 = alg_hold(e_tokentype_tokenVinteger), alg_invoke(v_this, "AddToken", (Value[]){q_3, alg_hold(f_toradix(NULL, (Value[]){v_digits, v_alphabet}, 2))}, 2))));
                             alg_hold_top = rh_160;
                             Value ret_18 = alg_nil();
                             alg_root_top = rt_base;
@@ -684,6 +694,7 @@ static Value m_scanner_scanradix_1_string(Value v_this, Value *args, int32_t cou
 
 static Value m_scanner_inalphabet_2_string_char(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -694,7 +705,7 @@ static Value m_scanner_inalphabet_2_string_char(Value v_this, Value *args, int32
     (void)v_c;
     alg_root(&v_c, 1);
     int32_t rh_161 = alg_hold_top;
-    Value ret_20 = alg_hold(alg_greater_equal(alg_hold(alg_pos(v_alphabet, alg_hold(alg_to_lower(alg_hold(alg_str(v_c)))))), alg_int(0)));
+    Value ret_20 = alg_hold(alg_greater_equal(alg_hold((q_0 = alg_hold(v_alphabet), alg_pos(q_0, alg_hold(alg_to_lower(alg_hold(alg_str(v_c))))))), alg_int(0)));
     alg_root_top = rt_base;
     return ret_20;
     alg_hold_top = rh_161;
@@ -723,6 +734,7 @@ static Value m_scanner_ishexdigit_1_char(Value v_this, Value *args, int32_t coun
 
 static Value m_scanner_isexponent_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -733,13 +745,13 @@ static Value m_scanner_isexponent_0(Value v_this, Value *args, int32_t count) {
     alg_hold_top = rh_163;
     (void)((v_at = alg_hold(alg_add(alg_property(v_this, "Current"), alg_int(1)))));
     alg_hold_top = rh_163;
-    if (alg_truthy(alg_hold(alg_less(v_at, alg_hold(alg_text_length(alg_property(v_this, "Source"))))))) {
+    if (alg_truthy(alg_hold((q_0 = alg_hold(v_at), alg_less(q_0, alg_hold(alg_text_length(alg_property(v_this, "Source")))))))) {
         if (alg_truthy(alg_hold((or_13 = alg_hold(alg_equal(alg_hold(alg_subscript_get(alg_property(v_this, "Source"), v_at)), alg_char_value(43))), alg_truthy(or_13) ? or_13 : alg_hold(alg_equal(alg_hold(alg_subscript_get(alg_property(v_this, "Source"), v_at)), alg_char_value(45))))))) {
             (void)((v_at = alg_hold(alg_add(v_at, alg_int(1)))));
         }
     }
     alg_hold_top = rh_163;
-    if (alg_truthy(alg_hold(alg_greater_equal(v_at, alg_hold(alg_text_length(alg_property(v_this, "Source"))))))) {
+    if (alg_truthy(alg_hold((q_1 = alg_hold(v_at), alg_greater_equal(q_1, alg_hold(alg_text_length(alg_property(v_this, "Source")))))))) {
         Value ret_24 = alg_bool(false);
         alg_root_top = rt_base;
         return ret_24;
@@ -756,6 +768,7 @@ static Value m_scanner_isexponent_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_scanner_scanstring_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -794,7 +807,7 @@ static Value m_scanner_scanstring_0(Value v_this, Value *args, int32_t count) {
                     (void)(alg_set_property(v_this, "Line", alg_hold(alg_add(alg_property(v_this, "Line"), alg_int(1)))));
                 }
                 alg_hold_top = rh_166;
-                (void)((v_value = alg_hold(alg_add(v_value, alg_hold(alg_invoke(v_this, "Advance", NULL, 0))))));
+                (void)((v_value = alg_hold((q_0 = alg_hold(v_value), alg_add(q_0, alg_hold(alg_invoke(v_this, "Advance", NULL, 0)))))));
                 alg_hold_top = rh_166;
             }
         }
@@ -817,7 +830,7 @@ static Value m_scanner_scanstring_0(Value v_this, Value *args, int32_t count) {
     (void)(alg_hold(alg_invoke(v_this, "Advance", NULL, 0)));
     alg_hold_top = rh_164;
     if (alg_truthy(alg_hold(alg_equal(alg_hold(alg_text_length(v_value)), alg_int(1))))) {
-        (void)(alg_hold(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVchar, alg_hold(alg_subscript_get(v_value, alg_int(0)))}, 2)));
+        (void)(alg_hold((q_1 = alg_hold(e_tokentype_tokenVchar), alg_invoke(v_this, "AddToken", (Value[]){q_1, alg_hold(alg_subscript_get(v_value, alg_int(0)))}, 2))));
     } else {
         (void)(alg_hold(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVstring, v_value}, 2)));
     }
@@ -829,6 +842,7 @@ static Value m_scanner_scanstring_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_scanner_scanchar_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3, q_4;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -838,7 +852,7 @@ static Value m_scanner_scanchar_0(Value v_this, Value *args, int32_t count) {
             int32_t rh_170 = alg_hold_top;
             (void)((alg_declared(d_haderror, "HadError"), (v_haderror = alg_bool(true))));
             alg_hold_top = rh_170;
-            (void)((alg_declared(d_lasterror, "LastError"), (v_lasterror = alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_literal("[line "), alg_property(v_this, "Line"))), alg_literal("] Error: Invalid character: "))), alg_hold(alg_invoke(v_this, "Peek", NULL, 0)))))));
+            (void)((alg_declared(d_lasterror, "LastError"), (v_lasterror = alg_hold((q_0 = alg_hold(alg_add(alg_hold(alg_add(alg_literal("[line "), alg_property(v_this, "Line"))), alg_literal("] Error: Invalid character: "))), alg_add(q_0, alg_hold(alg_invoke(v_this, "Peek", NULL, 0))))))));
             alg_hold_top = rh_170;
             Value ret_29 = alg_nil();
             alg_root_top = rt_base;
@@ -855,7 +869,7 @@ static Value m_scanner_scanchar_0(Value v_this, Value *args, int32_t count) {
         }
     }
     alg_hold_top = rh_169;
-    Value v_code = alg_hold(f_tointeger(NULL, (Value[]){alg_hold(alg_copy(alg_property(v_this, "Source"), alg_hold(alg_add(alg_property(v_this, "Start"), alg_int(1))), alg_hold(alg_subtract(alg_hold(alg_subtract(alg_property(v_this, "Current"), alg_property(v_this, "Start"))), alg_int(1)))))}, 1));
+    Value v_code = alg_hold(f_tointeger(NULL, (Value[]){alg_hold((q_1 = alg_hold(alg_property(v_this, "Source")), q_2 = alg_hold(alg_add(alg_property(v_this, "Start"), alg_int(1))), alg_copy(q_1, q_2, alg_hold(alg_subtract(alg_hold(alg_subtract(alg_property(v_this, "Current"), alg_property(v_this, "Start"))), alg_int(1))))))}, 1));
     (void)v_code;
     alg_root(&v_code, 1);
     alg_hold_top = rh_169;
@@ -878,7 +892,7 @@ static Value m_scanner_scanchar_0(Value v_this, Value *args, int32_t count) {
             int32_t rh_173 = alg_hold_top;
             (void)((alg_declared(d_haderror, "HadError"), (v_haderror = alg_bool(true))));
             alg_hold_top = rh_173;
-            (void)((alg_declared(d_lasterror, "LastError"), (v_lasterror = alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_literal("[line "), alg_property(v_this, "Line"))), alg_literal("] Error: Char is limited to 0..10FFFF, excluding D800..DFFF: #"))), v_code)))));
+            (void)((alg_declared(d_lasterror, "LastError"), (v_lasterror = alg_hold((q_3 = alg_hold(alg_add(alg_hold(alg_add(alg_literal("[line "), alg_property(v_this, "Line"))), alg_literal("] Error: Char is limited to 0..10FFFF, excluding D800..DFFF: #"))), alg_add(q_3, v_code))))));
             alg_hold_top = rh_173;
             Value ret_31 = alg_nil();
             alg_root_top = rt_base;
@@ -887,7 +901,7 @@ static Value m_scanner_scanchar_0(Value v_this, Value *args, int32_t count) {
         }
     }
     alg_hold_top = rh_169;
-    (void)(alg_hold(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVchar, alg_hold(alg_char(v_code))}, 2)));
+    (void)(alg_hold((q_4 = alg_hold(e_tokentype_tokenVchar), alg_invoke(v_this, "AddToken", (Value[]){q_4, alg_hold(alg_char(v_code))}, 2))));
     alg_hold_top = rh_169;
     Value ret_32 = alg_nil();
     alg_root_top = rt_base;
@@ -896,6 +910,7 @@ static Value m_scanner_scanchar_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_scanner_match_1_char(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -909,7 +924,7 @@ static Value m_scanner_match_1_char(Value v_this, Value *args, int32_t count) {
         return ret_33;
     }
     alg_hold_top = rh_174;
-    if (alg_truthy(alg_hold(alg_not_equal(alg_hold(alg_subscript_get(alg_property(v_this, "Source"), alg_property(v_this, "Current"))), v_expected)))) {
+    if (alg_truthy(alg_hold((q_0 = alg_hold(alg_subscript_get(alg_property(v_this, "Source"), alg_property(v_this, "Current"))), alg_not_equal(q_0, v_expected))))) {
         Value ret_34 = alg_bool(false);
         alg_root_top = rt_base;
         return ret_34;
@@ -949,17 +964,18 @@ static Value m_scanner_peek_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_scanner_peeknext_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
     int32_t rh_176 = alg_hold_top;
-    if (alg_truthy(alg_hold(alg_greater_equal(alg_hold(alg_add(alg_property(v_this, "Current"), alg_int(1))), alg_hold(alg_text_length(alg_property(v_this, "Source"))))))) {
+    if (alg_truthy(alg_hold((q_0 = alg_hold(alg_add(alg_property(v_this, "Current"), alg_int(1))), alg_greater_equal(q_0, alg_hold(alg_text_length(alg_property(v_this, "Source")))))))) {
         Value ret_40 = alg_hold(alg_char(alg_int(0)));
         alg_root_top = rt_base;
         return ret_40;
     }
     alg_hold_top = rh_176;
-    Value ret_41 = alg_hold(alg_subscript_get(alg_property(v_this, "Source"), alg_hold(alg_add(alg_property(v_this, "Current"), alg_int(1)))));
+    Value ret_41 = alg_hold((q_1 = alg_hold(alg_property(v_this, "Source")), alg_subscript_get(q_1, alg_hold(alg_add(alg_property(v_this, "Current"), alg_int(1))))));
     alg_root_top = rt_base;
     return ret_41;
     alg_hold_top = rh_176;
@@ -986,6 +1002,7 @@ static Value m_scanner_addtoken_1_tokentype(Value v_this, Value *args, int32_t c
 
 static Value m_scanner_addtoken_2_tokentype(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -1004,11 +1021,11 @@ static Value m_scanner_addtoken_2_tokentype(Value v_this, Value *args, int32_t c
     (void)v_thetoken;
     alg_root(&v_thetoken, 1);
     alg_hold_top = rh_178;
-    (void)((v_text = alg_hold(alg_copy(alg_property(v_this, "Source"), alg_property(v_this, "Start"), alg_hold(alg_subtract(alg_property(v_this, "Current"), alg_property(v_this, "Start")))))));
+    (void)((v_text = alg_hold((q_0 = alg_hold(alg_property(v_this, "Source")), q_1 = alg_hold(alg_property(v_this, "Start")), alg_copy(q_0, q_1, alg_hold(alg_subtract(alg_property(v_this, "Current"), alg_property(v_this, "Start"))))))));
     alg_hold_top = rh_178;
     (void)((v_thetoken = alg_hold(alg_new(k_token, (Value[]){v_typeoftoken, v_text, v_literal, alg_property(v_this, "Line")}, 4))));
     alg_hold_top = rh_178;
-    (void)(alg_hold(alg_set_property(v_thetoken, "Offset", alg_hold(alg_subtract(alg_property(v_this, "Start"), alg_property(v_this, "LineStart"))))));
+    (void)(alg_hold((q_2 = alg_hold(v_thetoken), alg_set_property(q_2, "Offset", alg_hold(alg_subtract(alg_property(v_this, "Start"), alg_property(v_this, "LineStart")))))));
     alg_hold_top = rh_178;
     (void)(alg_hold(alg_set_property(v_thetoken, "File", alg_property(v_this, "FileName"))));
     alg_hold_top = rh_178;
@@ -1021,11 +1038,12 @@ static Value m_scanner_addtoken_2_tokentype(Value v_this, Value *args, int32_t c
 
 static Value m_scanner_isatend_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
     int32_t rh_179 = alg_hold_top;
-    Value ret_45 = alg_hold(alg_greater_equal(alg_property(v_this, "Current"), alg_hold(alg_text_length(alg_property(v_this, "Source")))));
+    Value ret_45 = alg_hold((q_0 = alg_hold(alg_property(v_this, "Current")), alg_greater_equal(q_0, alg_hold(alg_text_length(alg_property(v_this, "Source"))))));
     alg_root_top = rt_base;
     return ret_45;
     alg_hold_top = rh_179;

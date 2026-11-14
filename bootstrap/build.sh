@@ -70,7 +70,11 @@ FFI=""
 FFI_LIBS=""
 
 case "${1:-}" in
-    --ffi) FFI="-DALG_FFI"; FFI_LIBS="-lffi" ;;
+    # -lm because a bare-named external resolves from the running program
+    # [FUN-017], and on Linux the C library's math lives in a library of its
+    # own; algol.c holds a reference to it so --as-needed keeps it.  A no-op
+    # on macOS, where it is part of libSystem.
+    --ffi) FFI="-DALG_FFI"; FFI_LIBS="-lffi -lm" ;;
     "")    ;;
     *)     echo "usage: build.sh [--ffi]" >&2; exit 2 ;;
 esac

@@ -39,6 +39,7 @@ static Value m_sourcecode_begins_1_string(Value v_this, Value *args, int32_t cou
 
 static Value m_sourcecode_add_3_string_integer_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3, q_4, q_5;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -69,23 +70,23 @@ static Value m_sourcecode_add_3_string_integer_string(Value v_this, Value *args,
     (void)((v_name = alg_hold(alg_invoke(v_this, "Keyed", (Value[]){v_file}, 1))));
     alg_hold_top = rh_118;
     if (alg_truthy(alg_hold(alg_not(alg_hold(alg_invoke(alg_property(v_this, "Files"), "Contains", (Value[]){v_name}, 1)))))) {
-        (void)(alg_hold(alg_invoke(alg_property(v_this, "Files"), "Put", (Value[]){v_name, alg_hold(alg_list())}, 2)));
+        (void)(alg_hold((q_0 = alg_hold(alg_property(v_this, "Files")), q_1 = alg_hold(v_name), alg_invoke(q_0, "Put", (Value[]){q_1, alg_hold(alg_list())}, 2))));
     }
     alg_hold_top = rh_118;
     (void)((v_lines = alg_hold(alg_cast_kind(alg_invoke(alg_property(v_this, "Files"), "Get", (Value[]){v_name}, 1), ALG_KIND_LIST, "List"))));
     alg_hold_top = rh_118;
     {
         int32_t rh_119 = alg_hold_top;
-        while ((alg_hold_top = rh_119, alg_truthy(alg_hold(alg_less(alg_hold(alg_property(v_lines, "Length")), alg_hold(alg_subtract(v_linenumber, alg_int(1)))))))) {
+        while ((alg_hold_top = rh_119, alg_truthy(alg_hold((q_2 = alg_hold(alg_property(v_lines, "Length")), alg_less(q_2, alg_hold(alg_subtract(v_linenumber, alg_int(1))))))))) {
             alg_safe_point();
             (void)(alg_hold(alg_invoke(v_lines, "Add", (Value[]){alg_literal("")}, 1)));
         }
     }
     alg_hold_top = rh_118;
-    if (alg_truthy(alg_hold(alg_equal(alg_hold(alg_property(v_lines, "Length")), alg_hold(alg_subtract(v_linenumber, alg_int(1))))))) {
+    if (alg_truthy(alg_hold((q_3 = alg_hold(alg_property(v_lines, "Length")), alg_equal(q_3, alg_hold(alg_subtract(v_linenumber, alg_int(1)))))))) {
         (void)(alg_hold(alg_invoke(v_lines, "Add", (Value[]){v_text}, 1)));
     } else {
-        (void)(alg_hold(alg_subscript_set(v_lines, alg_hold(alg_subtract(v_linenumber, alg_int(1))), v_text)));
+        (void)(alg_hold((q_4 = alg_hold(v_lines), q_5 = alg_hold(alg_subtract(v_linenumber, alg_int(1))), alg_subscript_set(q_4, q_5, v_text))));
     }
     alg_hold_top = rh_118;
     Value ret_2 = alg_nil();
@@ -95,6 +96,7 @@ static Value m_sourcecode_add_3_string_integer_string(Value v_this, Value *args,
 
 static Value m_sourcecode_get_2_string_integer(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -129,13 +131,13 @@ static Value m_sourcecode_get_2_string_integer(Value v_this, Value *args, int32_
     alg_hold_top = rh_120;
     (void)((v_lines = alg_hold(alg_cast_kind(alg_invoke(alg_property(v_this, "Files"), "Get", (Value[]){v_name}, 1), ALG_KIND_LIST, "List"))));
     alg_hold_top = rh_120;
-    if (alg_truthy(alg_hold(alg_greater(v_linenumber, alg_hold(alg_property(v_lines, "Length")))))) {
+    if (alg_truthy(alg_hold((q_0 = alg_hold(v_linenumber), alg_greater(q_0, alg_hold(alg_property(v_lines, "Length"))))))) {
         Value ret_5 = alg_literal("");
         alg_root_top = rt_base;
         return ret_5;
     }
     alg_hold_top = rh_120;
-    Value ret_6 = alg_hold(alg_str(alg_hold(alg_subscript_get(v_lines, alg_hold(alg_subtract(v_linenumber, alg_int(1)))))));
+    Value ret_6 = alg_hold(alg_str(alg_hold((q_1 = alg_hold(v_lines), alg_subscript_get(q_1, alg_hold(alg_subtract(v_linenumber, alg_int(1))))))));
     alg_root_top = rt_base;
     return ret_6;
     alg_hold_top = rh_120;

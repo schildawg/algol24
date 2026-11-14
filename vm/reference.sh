@@ -59,6 +59,11 @@ SPEC="spec/ALGOL-24.md"
 MISSING=0
 [ "${1:-}" = "--missing" ] && MISSING=1
 
+# The one mode that WRITES.  It stops after rewriting, because a file that has
+# just been rewritten has nothing left to tell you that the diff does not.
+REWRITE=0
+[ "${1:-}" = "--examples" ] && REWRITE=1
+
 for f in "$OPCODES" "$REF" "$SPEC"; do
     [ -f "$f" ] || { echo "no $f" >&2; exit 1; }
 done
@@ -280,6 +285,277 @@ while read -r rule; do
 done < "$WORK/cited"
 
 note "$CITED rules cited, all defined"
+
+# ----------------------------------------------------------------- examples --
+#
+# ⚠️ AN EXAMPLE IS THE MACHINE'S OWN OUTPUT AND IS RUN TO PROVE IT.  Each entry
+# carries one program and the window of `algvm --list` where its opcode appears;
+# this writes that program out, lists it, and requires the window to come back
+# CONTIGUOUSLY and in order.  Eighty hand-copied disassemblies would drift the
+# first time the emitter changed, and nothing would say so -- this is the
+# bargain conform.sh strikes for the corpus, applied to a reference: the example
+# and the thing it describes are one text.
+#
+# ⚠️ IT USES THE CHECKED-IN vm/algvm, which is exactly what a stale build leaves
+# behind.  defects.sh caught that once, where neither corpus did.  Build the
+# machine before trusting a green run here.
+#
+# Four entries name themselves as NOT RUN, because the only program that
+# reaches them declares three hundred globals and no entry can carry its
+# source.  Their windows are real output; nothing re-runs them.
+
+echo
+echo "Examples"
+
+ALGVM=vm/algvm
+[ -x "$ALGVM" ] || ALGVM=""
+
+SHOWN=0
+RAN=0
+NOT_RUN=0
+
+: > "$WORK/notrun"
+
+# The Example section's two fences -- the program, and the listing window --
+# pulled out by the FENCE and not by line number, so prose between them stays
+# free.  The first is tagged `algol24` and the second is bare, which is the
+# only thing telling them apart.
+example_of () {
+    awk -v src="$2" -v lst="$3" '
+        BEGIN { printf "" > src; printf "" > lst }
+        /^\*\*Example\*\*/ { inside = 1; next }
+        inside && /^\*\*/  { inside = 0 }
+        !inside { next }
+        /^```/ {
+            if (open) { open = 0; next }
+            open = 1
+            kind = ($0 == "```algol24") ? "src" : "lst"
+            next
+        }
+        open && kind == "src" { print > src }
+        open && kind == "lst" { print > lst }
+    ' "$1"
+}
+
+# ⚠️ --examples REWRITES RATHER THAN CHECKS, which is what makes the check
+# above affordable.  A change to what the emitter emits moves offsets in most
+# of these windows at once, and hand-editing seventy-six disassemblies is the
+# kind of chore that ends with the check being deleted.  This is vm/dispatch.sh's
+# split -- generate, or --check -- with the default the other way round, because
+# the usual question here is whether the file still agrees.
+#
+# It keeps each window's SHAPE: the same chunk, the same number of lines before
+# and after the instruction.  The instruction is found by its own text first and
+# by its mnemonic second, so a window stays pointed at what its author chose
+# even when every offset around it has moved.  The result is a diff to read, not
+# a thing to trust blindly.
+if [ "$REWRITE" -eq 1 ]; then
+    [ -n "$ALGVM" ] || { echo "no vm/algvm to list with -- ./vm/build.sh builds one" >&2; exit 2; }
+
+    CHANGED=0
+
+    while read -r name; do
+        entry="$WORK/entry.$name"
+        [ -f "$entry" ] || continue
+        grep -q '^\*\*Example\*\*' "$entry" || continue
+        grep -q "reference.sh: example-not-run $name" "$entry" && continue
+
+        example_of "$entry" "$WORK/prog.a24" "$WORK/want.lst"
+
+        [ -s "$WORK/prog.a24" ] || continue
+        [ -s "$WORK/want.lst" ] || continue
+
+        "$ALGVM" --list "$WORK/prog.a24" > "$WORK/got.lst" 2>/dev/null || true
+
+        awk -v OP="$name" -v want="$WORK/want.lst" '
+            BEGIN {
+                while ((getline l < want) > 0) w[++n] = l
+
+                head = "== <script> =="
+                if (w[1] ~ /^== /) { head = w[1]; for (i = 2; i <= n; i++) w[i - 1] = w[i]; n-- }
+
+                for (i = 1; i <= n; i++) {
+                    split(w[i], f, " ")
+                    if (f[2] == OP) { at = i; text = w[i]; sub(/^[0-9]+  /, "", text); break }
+                }
+
+                before = at - 1
+                after  = n - at
+            }
+
+            /^== / { chunk = $0; next }
+            /^$/   { next }
+
+            {
+                line[++m] = $0
+                where[m]  = chunk
+
+                said = $0
+                sub(/^[0-9]+  /, "", said)
+
+                # FOUR candidates, best first.  The instruction by its own text
+                # survives every offset around it moving, which is the usual
+                # case after an emitter change; the mnemonic alone survives its
+                # operands changing too.  Both are preferred inside the chunk
+                # the window named -- and then tried anywhere, because a chunk
+                # RENAMED by an edit to the program above it would otherwise
+                # leave the window unrepairable by anything but hand.
+                #
+                # (No apostrophes in here: this awk is single-quoted, and one
+                # closed the string and made the shell parse the rest.)
+                if (said == text) {
+                    if (chunk == head && pick1 == 0) pick1 = m
+                    if (pick3 == 0)                  pick3 = m
+                }
+
+                if ($2 == OP) {
+                    if (chunk == head && pick2 == 0) pick2 = m
+                    if (pick4 == 0)                  pick4 = m
+                }
+            }
+
+            END {
+                at = pick1 ? pick1 : pick2 ? pick2 : pick3 ? pick3 : pick4
+                if (!at) exit 1
+
+                # The window stays inside the chunk it landed in: a line from
+                # the one above or below says nothing true about either.
+                lo = at - before; if (lo < 1) lo = 1
+                hi = at + after;  if (hi > m) hi = m
+
+                while (where[lo] != where[at]) lo++
+                while (where[hi] != where[at]) hi--
+
+                if (where[at] != "== <script> ==") print where[at]
+                for (i = lo; i <= hi; i++) print line[i]
+            }
+        ' "$WORK/got.lst" > "$WORK/new.$name" || { fail "$name: $ALGVM lists no $name for its own example"; continue; }
+
+        cmp -s "$WORK/new.$name" "$WORK/want.lst" || CHANGED=$((CHANGED + 1))
+    done < "$WORK/entries"
+
+    awk -v work="$WORK" '
+        /^## OP_[A-Z0-9_]+/ { name = $2; inside = 0; done = 0 }
+        /^\*\*Example\*\*/  { inside = 1 }
+        inside && /^\*\*(Satisfies|Raises|See also)\*\*/ { inside = 0 }
+
+        inside && !done && /^```$/ && !open {
+            file = work "/new." name
+
+            # ⚠️ NOT CLOSED BETWEEN THE FIRST READ AND THE REST.  Closing
+            # rewinds the file, so the loop below read line one a second time
+            # and every window came back with its first line twice.
+            if ((getline probe < file) > 0) {
+                print
+                print probe
+                while ((getline probe < file) > 0) print probe
+                close(file)
+                skipping = 1
+                done = 1
+                next
+            }
+            close(file)
+        }
+
+        skipping && /^```$/ { skipping = 0; print; next }
+        skipping            { next }
+
+        /^```algol24/ { open = 1 }
+        /^```$/ && open { open = 0 }
+
+        { print }
+    ' "$REF" > "$WORK/REF.new"
+
+    mv "$WORK/REF.new" "$REF"
+
+    echo "  rewrote every window from $ALGVM; $CHANGED differed from what was there"
+    echo
+    echo "Read the diff: a window is a CHOICE of what to show, and this keeps the"
+    echo "old one's shape without knowing what it was for."
+
+    # ⚠️ A REWRITE THAT COULD NOT FIND AN INSTRUCTION STILL FAILS.  Leaving the
+    # old window in place is the right answer, since nothing here can guess
+    # what was meant -- but exiting 0 on it would report a repair that did not
+    # happen.
+    exit "$FAILED"
+fi
+
+while read -r name; do
+    entry="$WORK/entry.$name"
+    [ -f "$entry" ] || continue
+    grep -q "^$name " "$WORK/ops" || continue
+
+    grep -q '^\*\*Example\*\*' "$entry" \
+        || { fail "$name has no Example section"; continue; }
+
+    example_of "$entry" "$WORK/prog.a24" "$WORK/want.lst"
+
+    [ -s "$WORK/want.lst" ] \
+        || { fail "$name's Example shows no listing"; continue; }
+
+    # An example of the wrong instruction is the one mistake a contiguity
+    # check cannot catch: a window copied from a neighbour still matches the
+    # machine perfectly.  The mnemonic is matched with its leading gap and a
+    # boundary after it, because OP_GET_GLOBAL is a prefix of
+    # OP_GET_GLOBAL_LONG.
+    grep -qE "  $name( |\$)" "$WORK/want.lst" \
+        || fail "$name's Example does not show $name"
+
+    SHOWN=$((SHOWN + 1))
+
+    if grep -q "reference.sh: example-not-run $name" "$entry"; then
+        NOT_RUN=$((NOT_RUN + 1))
+        echo "$name" >> "$WORK/notrun"
+        continue
+    fi
+
+    [ -s "$WORK/prog.a24" ] \
+        || { fail "$name's Example has no program to run"; continue; }
+
+    [ -n "$ALGVM" ] || continue
+
+    "$ALGVM" --list "$WORK/prog.a24" > "$WORK/got.lst" 2>/dev/null || true
+
+    # A leading `== name ==` is an ASSERTION ABOUT WHICH CHUNK and not a line
+    # the window is adjacent to: an example inside a subprogram names the chunk
+    # it is in and then shows a window from the middle of it.  So the header is
+    # located first and the search is confined to that chunk, where the rest
+    # must be contiguous and in order.
+    if awk -v want="$WORK/want.lst" '
+            BEGIN {
+                while ((getline l < want) > 0) w[++n] = l
+
+                if (w[1] ~ /^== /) { head = w[1]; for (i = 2; i <= n; i++) w[i - 1] = w[i]; n-- }
+            }
+
+            /^== / { chunk = $0 }
+            { out[++m] = $0; where[m] = chunk }
+
+            END {
+                for (i = 1; i + n - 1 <= m; i++) {
+                    if (head != "" && where[i] != head) continue
+
+                    ok = 1
+                    for (j = 1; j <= n; j++)
+                        if (out[i + j - 1] != w[j]) { ok = 0; break }
+                    if (ok) exit 0
+                }
+                exit 1
+            }' "$WORK/got.lst"
+    then
+        RAN=$((RAN + 1))
+    else
+        fail "$name's Example is not what the machine prints today -- ./vm/reference.sh --examples rewrites every window from live output"
+    fi
+done < "$WORK/entries"
+
+note "$SHOWN entries carry one, $RAN run and compared against the machine"
+
+[ "$NOT_RUN" -eq 0 ] \
+    || note "$NOT_RUN not run, by their own admission: $(tr '\n' ' ' < "$WORK/notrun")"
+
+[ -n "$ALGVM" ] \
+    || note "no vm/algvm, so NOTHING was run -- ./vm/build.sh builds one"
 
 # ---------------------------------------------------------------- coverage --
 

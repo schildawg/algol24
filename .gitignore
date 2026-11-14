@@ -4,11 +4,14 @@
 # must stay in the repository -- they are the only way into the language, since
 # the compiler is written in Algol-24 and compiles itself.
 bootstrap/algc
+# mingw names it algc.exe, so both spellings are the binary.
+bootstrap/algc.exe
 
 # The bytecode machine, built from vm/run.a24 by vm/build.sh.  A second binary
 # rather than a mode of algc, and in no bootstrap path -- so there is no seed
 # of it to keep.
 vm/algvm
+vm/algvm.exe
 
 # Emitted C: the default --compile output directory, and anything a harness
 # writes beside it.

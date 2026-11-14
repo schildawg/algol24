@@ -68,6 +68,7 @@ static Value m_collectionmethod_arity_0(Value v_this, Value *args, int32_t count
 
 static Value m_collectionmethod_call_2(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -78,7 +79,7 @@ static Value m_collectionmethod_call_2(Value v_this, Value *args, int32_t count)
     (void)v_arguments;
     alg_root(&v_arguments, 1);
     int32_t rh_295 = alg_hold_top;
-    Value ret_3 = alg_hold(alg_invoke(alg_property(v_this, "Receiver"), "Invoke", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_str(alg_hold(alg_property(alg_property(v_this, "Name"), "Lexeme"))))}, 1)), v_arguments}, 2));
+    Value ret_3 = alg_hold((q_0 = alg_hold(alg_property(v_this, "Receiver")), q_1 = alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_str(alg_hold(alg_property(alg_property(v_this, "Name"), "Lexeme"))))}, 1)), alg_invoke(q_0, "Invoke", (Value[]){q_1, v_arguments}, 2)));
     alg_root_top = rt_base;
     return ret_3;
     alg_hold_top = rh_295;
@@ -115,6 +116,7 @@ static Value i_objcollection(Value v_this, Value *args, int32_t count) {
 
 static Value m_objcollection_init_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -124,9 +126,9 @@ static Value m_objcollection_init_1_string(Value v_this, Value *args, int32_t co
     int32_t rh_297 = alg_hold_top;
     (void)(alg_hold(alg_set_property(v_this, "Kind", v_kind)));
     alg_hold_top = rh_297;
-    (void)(alg_hold(alg_set_property(v_this, "Items", alg_hold(alg_list()))));
+    (void)(alg_hold((q_0 = alg_hold(v_this), alg_set_property(q_0, "Items", alg_hold(alg_list())))));
     alg_hold_top = rh_297;
-    (void)(alg_hold(alg_set_property(v_this, "Pairs", alg_hold(alg_map()))));
+    (void)(alg_hold((q_1 = alg_hold(v_this), alg_set_property(q_1, "Pairs", alg_hold(alg_map())))));
     alg_hold_top = rh_297;
     Value ret_7 = alg_nil();
     alg_root_top = rt_base;
@@ -361,6 +363,7 @@ static Value m_objcollection_get_1_token(Value v_this, Value *args, int32_t coun
 
 static Value m_objcollection_aslist_1_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -385,7 +388,7 @@ static Value m_objcollection_aslist_1_list(Value v_this, Value *args, int32_t co
             Value v_each = alg_iterable_at(loop_38, at_38);
             (void)v_each;
             alg_root(&v_each, 1);
-            (void)(alg_hold(alg_invoke(alg_hold(alg_property(v_result, "Items")), "Add", (Value[]){v_each}, 1)));
+            (void)(alg_hold((q_0 = alg_hold(alg_property(v_result, "Items")), alg_invoke(q_0, "Add", (Value[]){v_each}, 1))));
             alg_root_top = rt_306;
         }
         alg_root_top = rt_305;
@@ -402,6 +405,7 @@ static Value m_objcollection_aslist_1_list(Value v_this, Value *args, int32_t co
 
 static Value m_objcollection_invoke_2_string_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3, q_4, q_5, q_6, q_7, q_8, q_9, q_10, q_11, q_12, q_13, q_14, q_15, q_16, q_17, q_18, q_19, q_20, q_21, q_22, q_23;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -416,12 +420,12 @@ static Value m_objcollection_invoke_2_string_list(Value v_this, Value *args, int
         {
             int32_t rh_308 = alg_hold_top;
             if (alg_truthy(alg_hold(alg_equal(alg_property(v_this, "Kind"), alg_literal("Map"))))) {
-                Value ret_41 = alg_hold(alg_invoke(alg_property(v_this, "Pairs"), "Contains", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1));
+                Value ret_41 = alg_hold((q_0 = alg_hold(alg_property(v_this, "Pairs")), alg_invoke(q_0, "Contains", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
                 alg_root_top = rt_base;
                 return ret_41;
             }
             alg_hold_top = rh_308;
-            Value ret_42 = alg_hold(alg_invoke(alg_property(v_this, "Items"), "Contains", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1));
+            Value ret_42 = alg_hold((q_1 = alg_hold(alg_property(v_this, "Items")), alg_invoke(q_1, "Contains", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
             alg_root_top = rt_base;
             return ret_42;
             alg_hold_top = rh_308;
@@ -432,12 +436,12 @@ static Value m_objcollection_invoke_2_string_list(Value v_this, Value *args, int
         {
             int32_t rh_309 = alg_hold_top;
             if (alg_truthy(alg_hold(alg_equal(alg_property(v_this, "Kind"), alg_literal("Map"))))) {
-                Value ret_43 = alg_hold(alg_invoke(alg_property(v_this, "Pairs"), "Get", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1));
+                Value ret_43 = alg_hold((q_2 = alg_hold(alg_property(v_this, "Pairs")), alg_invoke(q_2, "Get", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
                 alg_root_top = rt_base;
                 return ret_43;
             }
             alg_hold_top = rh_309;
-            Value ret_44 = alg_hold(alg_invoke(alg_property(v_this, "Items"), "Get", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1));
+            Value ret_44 = alg_hold((q_3 = alg_hold(alg_property(v_this, "Items")), alg_invoke(q_3, "Get", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
             alg_root_top = rt_base;
             return ret_44;
             alg_hold_top = rh_309;
@@ -450,8 +454,8 @@ static Value m_objcollection_invoke_2_string_list(Value v_this, Value *args, int
             if (alg_truthy(alg_hold(alg_equal(alg_property(v_this, "Kind"), alg_literal("Set"))))) {
                 {
                     int32_t rh_311 = alg_hold_top;
-                    if (alg_truthy(alg_hold(alg_not(alg_hold(alg_invoke(alg_property(v_this, "Items"), "Contains", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)))))) {
-                        (void)(alg_hold(alg_invoke(alg_property(v_this, "Items"), "Add", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
+                    if (alg_truthy(alg_hold(alg_not(alg_hold((q_4 = alg_hold(alg_property(v_this, "Items")), alg_invoke(q_4, "Contains", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1))))))) {
+                        (void)(alg_hold((q_5 = alg_hold(alg_property(v_this, "Items")), alg_invoke(q_5, "Add", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1))));
                     }
                     alg_hold_top = rh_311;
                     Value ret_45 = alg_hold(alg_subscript_get(v_arguments, alg_int(0)));
@@ -461,7 +465,7 @@ static Value m_objcollection_invoke_2_string_list(Value v_this, Value *args, int
                 }
             }
             alg_hold_top = rh_310;
-            (void)(alg_hold(alg_invoke(alg_property(v_this, "Items"), "Add", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
+            (void)(alg_hold((q_6 = alg_hold(alg_property(v_this, "Items")), alg_invoke(q_6, "Add", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1))));
             alg_hold_top = rh_310;
             Value ret_46 = alg_hold(alg_subscript_get(v_arguments, alg_int(0)));
             alg_root_top = rt_base;
@@ -473,7 +477,7 @@ static Value m_objcollection_invoke_2_string_list(Value v_this, Value *args, int
     if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("set"))))) {
         {
             int32_t rh_312 = alg_hold_top;
-            (void)(alg_hold(alg_subscript_set(alg_property(v_this, "Items"), alg_hold(alg_subscript_get(v_arguments, alg_int(0))), alg_hold(alg_subscript_get(v_arguments, alg_int(1))))));
+            (void)(alg_hold((q_7 = alg_hold(alg_property(v_this, "Items")), q_8 = alg_hold(alg_subscript_get(v_arguments, alg_int(0))), alg_subscript_set(q_7, q_8, alg_hold(alg_subscript_get(v_arguments, alg_int(1)))))));
             alg_hold_top = rh_312;
             Value ret_47 = alg_hold(alg_subscript_get(v_arguments, alg_int(1)));
             alg_root_top = rt_base;
@@ -485,7 +489,7 @@ static Value m_objcollection_invoke_2_string_list(Value v_this, Value *args, int
     if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("put"))))) {
         {
             int32_t rh_313 = alg_hold_top;
-            (void)(alg_hold(alg_invoke(alg_property(v_this, "Pairs"), "Put", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0))), alg_hold(alg_subscript_get(v_arguments, alg_int(1)))}, 2)));
+            (void)(alg_hold((q_9 = alg_hold(alg_property(v_this, "Pairs")), q_10 = alg_hold(alg_subscript_get(v_arguments, alg_int(0))), alg_invoke(q_9, "Put", (Value[]){q_10, alg_hold(alg_subscript_get(v_arguments, alg_int(1)))}, 2))));
             alg_hold_top = rh_313;
             Value ret_48 = alg_hold(alg_subscript_get(v_arguments, alg_int(1)));
             alg_root_top = rt_base;
@@ -495,19 +499,19 @@ static Value m_objcollection_invoke_2_string_list(Value v_this, Value *args, int
     }
     alg_hold_top = rh_307;
     if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("insert"))))) {
-        Value ret_49 = alg_hold(alg_invoke(alg_property(v_this, "Items"), "Insert", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0))), alg_hold(alg_subscript_get(v_arguments, alg_int(1)))}, 2));
+        Value ret_49 = alg_hold((q_11 = alg_hold(alg_property(v_this, "Items")), q_12 = alg_hold(alg_subscript_get(v_arguments, alg_int(0))), alg_invoke(q_11, "Insert", (Value[]){q_12, alg_hold(alg_subscript_get(v_arguments, alg_int(1)))}, 2)));
         alg_root_top = rt_base;
         return ret_49;
     }
     alg_hold_top = rh_307;
     if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("removeat"))))) {
-        Value ret_50 = alg_hold(alg_invoke(alg_property(v_this, "Items"), "RemoveAt", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1));
+        Value ret_50 = alg_hold((q_13 = alg_hold(alg_property(v_this, "Items")), alg_invoke(q_13, "RemoveAt", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
         alg_root_top = rt_base;
         return ret_50;
     }
     alg_hold_top = rh_307;
     if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("indexof"))))) {
-        Value ret_51 = alg_hold(alg_invoke(alg_property(v_this, "Items"), "IndexOf", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1));
+        Value ret_51 = alg_hold((q_14 = alg_hold(alg_property(v_this, "Items")), alg_invoke(q_14, "IndexOf", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
         alg_root_top = rt_base;
         return ret_51;
     }
@@ -536,9 +540,9 @@ static Value m_objcollection_invoke_2_string_list(Value v_this, Value *args, int
                 alg_hold_top = rh_317;
                 {
                     int32_t rh_318 = alg_hold_top;
-                    for (; (alg_hold_top = rh_318, alg_truthy(alg_hold(alg_less(v_i, alg_hold(alg_property(alg_property(v_this, "Items"), "Length")))))); (alg_hold_top = rh_318, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
+                    for (; (alg_hold_top = rh_318, alg_truthy(alg_hold((q_15 = alg_hold(v_i), alg_less(q_15, alg_hold(alg_property(alg_property(v_this, "Items"), "Length"))))))); (alg_hold_top = rh_318, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
                         alg_safe_point();
-                        (void)(alg_hold(alg_subscript_set(alg_property(v_this, "Items"), v_i, alg_hold(alg_subscript_get(v_arguments, alg_int(0))))));
+                        (void)(alg_hold((q_16 = alg_hold(alg_property(v_this, "Items")), q_17 = alg_hold(v_i), alg_subscript_set(q_16, q_17, alg_hold(alg_subscript_get(v_arguments, alg_int(0)))))));
                     }
                 }
                 alg_hold_top = rh_317;
@@ -577,20 +581,20 @@ static Value m_objcollection_invoke_2_string_list(Value v_this, Value *args, int
             if (alg_truthy(alg_hold(alg_equal(alg_property(v_this, "Kind"), alg_literal("Map"))))) {
                 {
                     int32_t rh_321 = alg_hold_top;
-                    if (alg_truthy(alg_hold(alg_not(alg_hold(alg_invoke(alg_property(v_this, "Pairs"), "Contains", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)))))) {
+                    if (alg_truthy(alg_hold(alg_not(alg_hold((q_18 = alg_hold(alg_property(v_this, "Pairs")), alg_invoke(q_18, "Contains", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1))))))) {
                         Value ret_57 = alg_nil();
                         alg_root_top = rt_base;
                         return ret_57;
                     }
                     alg_hold_top = rh_321;
-                    Value ret_58 = alg_hold(alg_invoke(alg_property(v_this, "Pairs"), "Remove", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1));
+                    Value ret_58 = alg_hold((q_19 = alg_hold(alg_property(v_this, "Pairs")), alg_invoke(q_19, "Remove", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
                     alg_root_top = rt_base;
                     return ret_58;
                     alg_hold_top = rh_321;
                 }
             }
             alg_hold_top = rh_320;
-            Value v_at = alg_hold(alg_invoke(alg_property(v_this, "Items"), "IndexOf", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1));
+            Value v_at = alg_hold((q_20 = alg_hold(alg_property(v_this, "Items")), alg_invoke(q_20, "IndexOf", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
             (void)v_at;
             alg_root(&v_at, 1);
             alg_hold_top = rh_320;
@@ -613,7 +617,7 @@ static Value m_objcollection_invoke_2_string_list(Value v_this, Value *args, int
     if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("push"))))) {
         {
             int32_t rh_322 = alg_hold_top;
-            (void)(alg_hold(alg_invoke(alg_property(v_this, "Items"), "Add", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
+            (void)(alg_hold((q_21 = alg_hold(alg_property(v_this, "Items")), alg_invoke(q_21, "Add", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1))));
             alg_hold_top = rh_322;
             Value ret_61 = alg_hold(alg_subscript_get(v_arguments, alg_int(0)));
             alg_root_top = rt_base;
@@ -629,7 +633,7 @@ static Value m_objcollection_invoke_2_string_list(Value v_this, Value *args, int
                 alg_raise(alg_literal("Pop from an empty Stack."));
             }
             alg_hold_top = rh_323;
-            Value ret_62 = alg_hold(alg_invoke(alg_property(v_this, "Items"), "RemoveAt", (Value[]){alg_hold(alg_subtract(alg_hold(alg_property(alg_property(v_this, "Items"), "Length")), alg_int(1)))}, 1));
+            Value ret_62 = alg_hold((q_22 = alg_hold(alg_property(v_this, "Items")), alg_invoke(q_22, "RemoveAt", (Value[]){alg_hold(alg_subtract(alg_hold(alg_property(alg_property(v_this, "Items"), "Length")), alg_int(1)))}, 1)));
             alg_root_top = rt_base;
             return ret_62;
             alg_hold_top = rh_323;
@@ -643,7 +647,7 @@ static Value m_objcollection_invoke_2_string_list(Value v_this, Value *args, int
                 alg_raise(alg_literal("Peek at an empty Stack."));
             }
             alg_hold_top = rh_324;
-            Value ret_63 = alg_hold(alg_subscript_get(alg_property(v_this, "Items"), alg_hold(alg_subtract(alg_hold(alg_property(alg_property(v_this, "Items"), "Length")), alg_int(1)))));
+            Value ret_63 = alg_hold((q_23 = alg_hold(alg_property(v_this, "Items")), alg_subscript_get(q_23, alg_hold(alg_subtract(alg_hold(alg_property(alg_property(v_this, "Items"), "Length")), alg_int(1))))));
             alg_root_top = rt_base;
             return ret_63;
             alg_hold_top = rh_324;

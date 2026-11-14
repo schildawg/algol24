@@ -32,6 +32,7 @@ static const char *t_objclass_call_2[] = { "TheInterpreter : Any", "Arguments : 
 
 Value f_nomatch(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    Value q_0, q_1, q_2;
     alg_arity(count, 4);
     int32_t rt_base = alg_root_top;
     alg_root(args, count);
@@ -56,8 +57,8 @@ Value f_nomatch(Value **cells, Value *args, int32_t count) {
             (void)v_only;
             alg_root(&v_only, 1);
             alg_hold_top = rh_235;
-            if (alg_truthy(alg_hold((or_2 = alg_hold((or_1 = alg_hold(alg_not(alg_hold(alg_invoke(v_only, "Variadic", NULL, 0)))), !alg_truthy(or_1) ? or_1 : alg_hold(alg_greater_equal(alg_hold(alg_invoke(v_only, "Arity", NULL, 0)), alg_int(0))))), !alg_truthy(or_2) ? or_2 : alg_hold(alg_not_equal(v_given, alg_hold(alg_invoke(v_only, "Arity", NULL, 0)))))))) {
-                Value ret_0 = alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expected "), alg_hold(alg_str(alg_hold(alg_invoke(v_only, "Arity", NULL, 0)))))), alg_literal(" arguments but got "))), alg_hold(alg_str(v_given)))), alg_char_value(46)));
+            if (alg_truthy(alg_hold((or_2 = alg_hold((or_1 = alg_hold(alg_not(alg_hold(alg_invoke(v_only, "Variadic", NULL, 0)))), !alg_truthy(or_1) ? or_1 : alg_hold(alg_greater_equal(alg_hold(alg_invoke(v_only, "Arity", NULL, 0)), alg_int(0))))), !alg_truthy(or_2) ? or_2 : alg_hold((q_0 = alg_hold(v_given), alg_not_equal(q_0, alg_hold(alg_invoke(v_only, "Arity", NULL, 0))))))))) {
+                Value ret_0 = alg_hold(alg_add(alg_hold((q_1 = alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expected "), alg_hold(alg_str(alg_hold(alg_invoke(v_only, "Arity", NULL, 0)))))), alg_literal(" arguments but got "))), alg_add(q_1, alg_hold(alg_str(v_given))))), alg_char_value(46)));
                 alg_root_top = rt_base;
                 return ret_0;
             }
@@ -79,7 +80,7 @@ Value f_nomatch(Value **cells, Value *args, int32_t count) {
     }
     alg_hold_top = rh_233;
     if (alg_truthy(alg_hold(alg_not_equal(v_ownername, alg_literal(""))))) {
-        Value ret_3 = alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_literal("No matching signature for "), v_ownername)), alg_char_value(46))), v_named)), alg_char_value(46)));
+        Value ret_3 = alg_hold(alg_add(alg_hold((q_2 = alg_hold(alg_add(alg_hold(alg_add(alg_literal("No matching signature for "), v_ownername)), alg_char_value(46))), alg_add(q_2, v_named))), alg_char_value(46)));
         alg_root_top = rt_base;
         return ret_3;
     }
@@ -141,6 +142,7 @@ static Value m_classmethod_arity_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_classmethod_call_2(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -151,7 +153,7 @@ static Value m_classmethod_call_2(Value v_this, Value *args, int32_t count) {
     (void)v_arguments;
     alg_root(&v_arguments, 1);
     int32_t rh_238 = alg_hold_top;
-    Value ret_9 = alg_hold(alg_invoke(v_theinterpreter, "SatisfiesType", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0))), alg_hold(alg_property(alg_property(v_this, "Receiver"), "Name"))}, 2));
+    Value ret_9 = alg_hold((q_0 = alg_hold(v_theinterpreter), q_1 = alg_hold(alg_subscript_get(v_arguments, alg_int(0))), alg_invoke(q_0, "SatisfiesType", (Value[]){q_1, alg_hold(alg_property(alg_property(v_this, "Receiver"), "Name"))}, 2)));
     alg_root_top = rt_base;
     return ret_9;
     alg_hold_top = rh_238;
@@ -221,6 +223,7 @@ static Value m_objclass_init_4_string_objclass_map_list(Value v_this, Value *arg
 
 static Value m_objclass_methodofarity_2_string_integer(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -250,7 +253,7 @@ static Value m_objclass_methodofarity_2_string_integer(Value v_this, Value *args
                     Value v_each = alg_iterable_at(loop_14, at_14);
                     (void)v_each;
                     alg_root(&v_each, 1);
-                    if (alg_truthy(alg_hold(alg_equal(alg_hold(alg_invoke(v_each, "Arity", NULL, 0)), v_thearity)))) {
+                    if (alg_truthy(alg_hold((q_0 = alg_hold(alg_invoke(v_each, "Arity", NULL, 0)), alg_equal(q_0, v_thearity))))) {
                         Value ret_15 = alg_cast_class(v_each, k_objfunction, "ObjFunction");
                         alg_root_top = rt_base;
                         return ret_15;
@@ -277,6 +280,7 @@ static Value m_objclass_methodofarity_2_string_integer(Value v_this, Value *args
 
 static Value m_objclass_declaresfield_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -295,7 +299,7 @@ static Value m_objclass_declaresfield_1_string(Value v_this, Value *args, int32_
             Value v_field = alg_iterable_at(loop_18, at_18);
             (void)v_field;
             alg_root(&v_field, 1);
-            if (alg_truthy(alg_hold(alg_equal(alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(alg_hold(alg_property(v_field, "Name")), "Lexeme"))}, 1)), v_name)))) {
+            if (alg_truthy(alg_hold((q_0 = alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(alg_hold(alg_property(v_field, "Name")), "Lexeme"))}, 1)), alg_equal(q_0, v_name))))) {
                 Value ret_19 = alg_bool(true);
                 alg_root_top = rt_base;
                 return ret_19;
@@ -322,6 +326,7 @@ static Value m_objclass_declaresfield_1_string(Value v_this, Value *args, int32_
 
 static Value m_objclass_declaredtypeof_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -340,7 +345,7 @@ static Value m_objclass_declaredtypeof_1_string(Value v_this, Value *args, int32
             Value v_field = alg_iterable_at(loop_23, at_23);
             (void)v_field;
             alg_root(&v_field, 1);
-            if (alg_truthy(alg_hold(alg_equal(alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(alg_hold(alg_property(v_field, "Name")), "Lexeme"))}, 1)), v_name)))) {
+            if (alg_truthy(alg_hold((q_0 = alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(alg_hold(alg_property(v_field, "Name")), "Lexeme"))}, 1)), alg_equal(q_0, v_name))))) {
                 Value ret_24 = alg_hold(f_canonicaltype(NULL, (Value[]){alg_hold(alg_str(alg_hold(alg_property(v_field, "TypeName"))))}, 1));
                 alg_root_top = rt_base;
                 return ret_24;
@@ -583,6 +588,7 @@ static Value m_objclass_gathercandidates_2_string_list(Value v_this, Value *args
 
 static Value m_objclass_seedfields_2_objinstance(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3, q_4, q_5;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -606,7 +612,7 @@ static Value m_objclass_seedfields_2_objinstance(Value v_this, Value *args, int3
         alg_hold_top = rh_273;
         {
             int32_t rh_274 = alg_hold_top;
-            for (; (alg_hold_top = rh_274, alg_truthy(alg_hold(alg_less(v_i, alg_hold(alg_property(alg_property(v_this, "Fields"), "Length")))))); (alg_hold_top = rh_274, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
+            for (; (alg_hold_top = rh_274, alg_truthy(alg_hold((q_0 = alg_hold(v_i), alg_less(q_0, alg_hold(alg_property(alg_property(v_this, "Fields"), "Length"))))))); (alg_hold_top = rh_274, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
                 alg_safe_point();
                 {
                     int32_t rt_275 = alg_root_top;
@@ -620,10 +626,10 @@ static Value m_objclass_seedfields_2_objinstance(Value v_this, Value *args, int3
                     alg_root(&v_value, 1);
                     alg_hold_top = rh_276;
                     if (alg_truthy(alg_hold(alg_not_equal(alg_hold(alg_property(v_field, "Initializer")), alg_nil())))) {
-                        (void)((v_value = alg_hold(alg_invoke(v_theinterpreter, "Widen", (Value[]){alg_hold(alg_invoke(v_theinterpreter, "Evaluate", (Value[]){alg_hold(alg_property(v_field, "Initializer"))}, 1)), alg_hold(alg_str(alg_hold(alg_property(v_field, "TypeName"))))}, 2))));
+                        (void)((v_value = alg_hold((q_2 = alg_hold(v_theinterpreter), q_3 = alg_hold((q_1 = alg_hold(v_theinterpreter), alg_invoke(q_1, "Evaluate", (Value[]){alg_hold(alg_property(v_field, "Initializer"))}, 1))), alg_invoke(q_2, "Widen", (Value[]){q_3, alg_hold(alg_str(alg_hold(alg_property(v_field, "TypeName"))))}, 2)))));
                     }
                     alg_hold_top = rh_276;
-                    (void)(alg_hold(alg_invoke(alg_hold(alg_property(v_instance, "Fields")), "Put", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(alg_hold(alg_property(v_field, "Name")), "Lexeme"))}, 1)), v_value}, 2)));
+                    (void)(alg_hold((q_4 = alg_hold(alg_property(v_instance, "Fields")), q_5 = alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(alg_hold(alg_property(v_field, "Name")), "Lexeme"))}, 1)), alg_invoke(q_4, "Put", (Value[]){q_5, v_value}, 2))));
                     alg_hold_top = rh_276;
                     alg_root_top = rt_275;
                 }
@@ -640,6 +646,7 @@ static Value m_objclass_seedfields_2_objinstance(Value v_this, Value *args, int3
 
 static Value m_objclass_fieldsinto_1_map(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -660,7 +667,7 @@ static Value m_objclass_fieldsinto_1_map(Value v_this, Value *args, int32_t coun
         alg_hold_top = rh_279;
         {
             int32_t rh_280 = alg_hold_top;
-            for (; (alg_hold_top = rh_280, alg_truthy(alg_hold(alg_less(v_i, alg_hold(alg_property(alg_property(v_this, "Fields"), "Length")))))); (alg_hold_top = rh_280, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
+            for (; (alg_hold_top = rh_280, alg_truthy(alg_hold((q_0 = alg_hold(v_i), alg_less(q_0, alg_hold(alg_property(alg_property(v_this, "Fields"), "Length"))))))); (alg_hold_top = rh_280, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
                 alg_safe_point();
                 {
                     int32_t rt_281 = alg_root_top;
@@ -669,7 +676,7 @@ static Value m_objclass_fieldsinto_1_map(Value v_this, Value *args, int32_t coun
                     (void)v_field;
                     alg_root(&v_field, 1);
                     alg_hold_top = rh_282;
-                    (void)(alg_hold(alg_invoke(v_into, "Put", (Value[]){alg_hold(alg_str(alg_hold(alg_property(alg_hold(alg_property(v_field, "Name")), "Lexeme")))), alg_hold(f_canonicaltype(NULL, (Value[]){alg_hold(alg_str(alg_hold(alg_property(v_field, "TypeName"))))}, 1))}, 2)));
+                    (void)(alg_hold((q_1 = alg_hold(v_into), q_2 = alg_hold(alg_str(alg_hold(alg_property(alg_hold(alg_property(v_field, "Name")), "Lexeme")))), alg_invoke(q_1, "Put", (Value[]){q_2, alg_hold(f_canonicaltype(NULL, (Value[]){alg_hold(alg_str(alg_hold(alg_property(v_field, "TypeName"))))}, 1))}, 2))));
                     alg_hold_top = rh_282;
                     alg_root_top = rt_281;
                 }
@@ -789,6 +796,7 @@ static Value m_objclass_tostring_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_objclass_call_2(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3, q_4;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -833,12 +841,12 @@ static Value m_objclass_call_2(Value v_this, Value *args, int32_t count) {
             } else {
                 {
                     int32_t rh_290 = alg_hold_top;
-                    if (alg_truthy(alg_hold((or_4 = alg_hold(alg_invoke(v_initializer, "Variadic", NULL, 0)), alg_truthy(or_4) ? or_4 : alg_hold(alg_equal(alg_hold(alg_property(v_arguments, "Length")), alg_hold(alg_invoke(v_initializer, "Arity", NULL, 0)))))))) {
+                    if (alg_truthy(alg_hold((or_4 = alg_hold(alg_invoke(v_initializer, "Variadic", NULL, 0)), alg_truthy(or_4) ? or_4 : alg_hold((q_0 = alg_hold(alg_property(v_arguments, "Length")), alg_equal(q_0, alg_hold(alg_invoke(v_initializer, "Arity", NULL, 0))))))))) {
                         alg_raise(alg_hold(alg_add(alg_hold(alg_add(alg_literal("No matching signature for "), alg_property(v_this, "Name"))), alg_char_value(46))));
                     }
                     alg_hold_top = rh_290;
                     if (alg_truthy(alg_hold(alg_not(alg_hold(alg_invoke(v_this, "Absorbs", (Value[]){v_arguments}, 1)))))) {
-                        alg_raise(alg_hold(f_nomatch(NULL, (Value[]){alg_literal(""), alg_property(v_this, "Name"), alg_hold(alg_invoke(v_this, "CandidatesOf", (Value[]){alg_literal("init")}, 1)), alg_hold(alg_property(v_arguments, "Length"))}, 4)));
+                        alg_raise(alg_hold((q_1 = alg_hold(alg_property(v_this, "Name")), q_2 = alg_hold(alg_invoke(v_this, "CandidatesOf", (Value[]){alg_literal("init")}, 1)), f_nomatch(NULL, (Value[]){alg_literal(""), q_1, q_2, alg_hold(alg_property(v_arguments, "Length"))}, 4))));
                     }
                     alg_hold_top = rh_290;
                 }
@@ -850,7 +858,7 @@ static Value m_objclass_call_2(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(alg_hold(alg_not_equal(v_initializer, alg_nil())))) {
         {
             int32_t rh_291 = alg_hold_top;
-            (void)(alg_hold(alg_invoke(alg_hold(alg_invoke(v_initializer, "Bind", (Value[]){v_instance}, 1)), "Call", (Value[]){v_theinterpreter, v_arguments}, 2)));
+            (void)(alg_hold((q_3 = alg_hold(alg_invoke(v_initializer, "Bind", (Value[]){v_instance}, 1)), q_4 = alg_hold(v_theinterpreter), alg_invoke(q_3, "Call", (Value[]){q_4, v_arguments}, 2))));
             alg_hold_top = rh_291;
         }
     }

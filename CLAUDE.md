@@ -16,7 +16,7 @@ an old thing, when the old-looking surface is the deliberate part and the
 capability behind it is the point. Pascal may be named as the *syntax's*
 lineage, never as the language's identity.
 
-**v0.4.0.** The language is **stable, not closed**: it changes only on measured
+**v0.4.1.** The language is **stable, not closed**: it changes only on measured
 demand from a project using it, and the measurement goes in the proposal. That
 is the whole policy, and it replaces the sentence this file used to carry about
 the language being done — which had to be rewritten at every release that
@@ -238,9 +238,52 @@ arity warning would have diverged every case with a wrong-count call in it,
   keeps it honest.** One uniform entry per opcode in the shape of the 1987 IBM
   Macro Assembler reference — Encoding, Stack, Operation, Satisfies, Raises,
   See also — written toward an assembly-like front end that would make the
-  mnemonics user-facing syntax. **All 78 entries exist**, grouped by what an
-  instruction is for with an alphabetical index, and `./vm/reference.sh` holds
-  every one of them to `OpCode.a24`.
+  mnemonics user-facing syntax. **Every opcode has an entry**, grouped by what
+  an instruction is for with an alphabetical index, and `./vm/reference.sh`
+  holds every one of them to `OpCode.a24`. The count that used to stand in
+  this sentence said 78 where the file carried 80 — the script prints the
+  figure, having counted it.
+
+  ⚠️ **EVERY ENTRY CARRIES ONE EXAMPLE, AND IT IS THE MACHINE'S OWN OUTPUT.**
+  A whole program — not a fragment — and the window of `algvm --list` where
+  that instruction appears. `vm/reference.sh` writes each program out, lists
+  it, and requires the window back **contiguously and in order**, so eighty
+  hand-copied disassemblies cannot quietly drift the first time the emitter
+  changes. That is `conform.sh`'s bargain applied to a reference: the example
+  and the thing it describes are one text.
+
+  ⚠️ **`./vm/reference.sh --examples` REWRITES every window from live output**,
+  keeping each one's shape — the same chunk, the same lines before and after —
+  and finding the instruction by its own text first, its mnemonic second. It
+  is what makes the check affordable: an emitter change moves most of the
+  offsets at once, and a check whose repair is seventy-six hand edits is a
+  check that gets deleted. `vm/dispatch.sh`'s generate/`--check` split, with
+  the default the other way round.
+
+  ⚠️ **A LEADING `== name ==` IS AN ASSERTION ABOUT WHICH CHUNK, not a line the
+  window sits next to.** An example inside a subprogram names its chunk and
+  then shows a window from the middle of it, so a literal contiguity test
+  fails on exactly those five. The checker locates the header and confines the
+  search to that chunk.
+
+  ⚠️ **Four entries are NOT RUN and say so**, because the only program that
+  reaches them declares three hundred globals: `OP_LONG` and the three long
+  global forms. Same shape as the `variable-width` and `not-an-opcode`
+  exemptions — a marker beside its reason, counted and named in the report
+  rather than hidden.
+
+  ⚠️ **The three `OP_SUBRANGE` at the head of every script are the machine
+  registering the language's own subranges**, before a program's first
+  statement. They are noise in every example but `OP_SUBRANGE`'s own, which is
+  why no window opens on them — and why that one entry shows the FOURTH, the
+  one a `type` declaration adds.
+
+  ⚠️ **Two awk traps cost a round each here.** An apostrophe inside a
+  single-quoted awk program closes the shell string, and the error arrives as
+  `syntax error near unexpected token` pointing at a brace sixty lines away.
+  And `close()` on a file read with `getline` REWINDS it, so reading the first
+  line, closing, then looping read line one twice — every window came back
+  with its first line doubled.
 
   ⚠️ **What no script can check is whether a sentence is TRUE, and the
   citations are the sharpest case.** The checker confirms a cited rule exists,
@@ -447,12 +490,71 @@ arity warning would have diverged every case with a wrong-count call in it,
   case passes; a program wanting `pow` needs no library name at all.
 
   ⚠️ **A BARE LIBRARY NAME IS SEARCHED AND A PATH IS NOT** [FUN-017]. Beside
-  the running binary, then `lib` beside it, then `bin/../share/algol24/lib` —
-  the same places a unit is looked for [MOD-002], because a library's units
-  and its shims are one install — and only then the operating system's own
-  resolution. A name holding a separator is that exact file, so
-  `in '/opt/homebrew/lib/libSDL2.dylib'` means what it always meant, and its
-  failure names no place because none was tried.
+  the running binary, then `lib` beside it, then `bin/../share/algol24/lib`,
+  then **the working directory** — the same places a unit is looked for
+  [MOD-002], because a library's units and its shims are one install — and
+  only then the operating system's own resolution. A name holding a separator
+  is that exact file, so `in '/opt/homebrew/lib/libSDL2.dylib'` means what it
+  always meant, and its failure names no place because none was tried.
+
+  ⚠️ **THE WORKING DIRECTORY WAS MISSING UNTIL 0.4.1, AND ONLY LINUX COULD
+  SHOW IT.** A unit is found there and its shim was not, so a program run from
+  the directory holding both resolved the `uses` and failed its first foreign
+  call — one place short of the half-measure [FUN-017] exists to end, which is
+  the shape a library is DEVELOPED in. macOS and Windows search the current
+  directory in their own loaders, so the OS step was already finding the file;
+  Linux does not, and the library's whole suite failed at its first unit.
+  `installed.sh` has the check and **it cannot go red on macOS** for exactly
+  that reason — the same thing already true of its two Windows-only checks.
+
+  ⚠️ **IT IS LAST OF OURS RATHER THAN SECOND**, where [MOD-002] puts it for a
+  unit. Second would change which file an existing program opens; last can only
+  turn a failure into a success. So a unit taken from the working directory may
+  still pair with a shim from an install, which needs one name duplicated
+  across both places to happen at all.
+
+  ⚠️ **AN `--ffi` LINK MUST NOW PASS `-lm`, and that is deliberate rather than
+  incidental.** A bare-named `external` resolves from the running program, so
+  `external 'atan'` wants libm *in the process* — and on Linux it is a library
+  of its own that nothing in the runtime called, so `--as-needed` dropped an
+  unreferenced `-lm` and `ldd` showed libc alone. `algol.c` holds a reference
+  under `ALG_FFI` so the dependency is real, which means a `-DALG_FFI` link
+  without `-lm` now fails to link naming `atan` rather than running and
+  answering `No foreign symbol`. Five link lines here pass it:
+  `bootstrap/build.sh`, `vm/build.sh`, `installed.sh`, `vm/conform.sh` and the
+  hello-scripts README. The default build is untouched, so
+  `cc -std=c11 -O2 -o DIR/prog DIR/*.c` still needs nothing.
+
+  ⚠️ **AND A SHIM LINKED *INTO* A PROGRAM NEEDS THE PROGRAM TO EXPORT ITS OWN
+  SYMBOLS, which is the same lesson `vm/build.sh` already probes for.** No
+  library name means the running program [FUN-014] — and an executable's own
+  symbols do not enter the table a by-name lookup searches unless it was linked
+  to export them. So a self-contained application builds and then answers
+  `No foreign symbol` at its first call, on **Linux alone**: Mach-O needs
+  nothing and PE wants `--export-all-symbols`. `-rdynamic` is the driver's
+  spelling on ELF.
+
+  ⚠️ **THERE IS NO RUNTIME ANSWER TO IT, which was measured rather than
+  assumed.** `dlopen(NULL, RTLD_GLOBAL)` succeeds and `dlsym` on that handle
+  still does not find the symbol, so the runtime cannot work around a link that
+  did not export. Only the link can put a symbol in that table.
+
+  ⚠️ **NOTHING HERE BUILT THAT SHAPE, which is why it was found downstream.**
+  Every other check loads a shim from a FILE; a program that links its own C
+  and resolves it from itself is what an application is, and
+  `algol24-library`'s example app is one — `No foreign symbol
+  'alg_random_seed'`, with a comment in its build script asserting ELF needed
+  no flag and citing `vm/build.sh` while concluding the opposite.
+  `installed.sh` has the check now, and it exercises **both** halves of
+  [FUN-014]'s build requirement at once: the emitted program links `-lm` and
+  calls a bare `external 'atan'` beside the linked-in shim.
+
+  ⚠️ **A FILE-SCOPE POINTER COULD NOT HOLD THAT REFERENCE.** `double
+  (*const anchor)(double) = atan;` is discarded under `-flto`: LTO sees the
+  whole program, finds nothing that reads it, internalizes it and drops it, and
+  `ldd` read libc alone a second time. The reference has to be an *access* —
+  a `volatile` local initialized from `atan`, called once from
+  `alg_set_arguments`, which every generated `main` calls first.
 
   ⚠️ **THE DIAGNOSTIC NAMES SHAPES AND NOT PATHS, and that is forced rather
   than terse.** The places come from the running binary's own location, so
@@ -762,9 +864,9 @@ arity warning would have diverged every case with a wrong-count call in it,
   cost `is Pointer`. A
   type missing from that chain cannot be refused, only mis-answered.
 
-  ⚠️ **`bootstrap/algc` built `--ffi` FAILS two conformance cases**, and
-  rightly: 0174 and DEF-37 record what a build *without* libffi says. Rebuild
-  plainly before trusting `conform.sh` — two failures appeared that way and
+  ⚠️ **`bootstrap/algc` built `--ffi` FAILS the conformance cases that**
+  **record a build without libffi**, rightly: 0174, 0210 and 0225. Rebuild
+  plainly before trusting `conform.sh` — failures like these appeared that way and
   were the build, not the code. `vm/conform.sh` builds its own `--ffi` algc in
   its work directory for exactly this reason, so running it leaves no trap.
 
@@ -1932,6 +2034,26 @@ the released body is never handed back at its own size class, which is case
   not use. `-export_dynamic` on MinGW is the sharpest case — it links, and
   produces an executable that runs and prints nothing at all.
 
+  ⚠️ **AND THE THIRD WAY IS A HANG, WHICH OUTPUT CANNOT CATCH — `./vm/build.sh`
+  DID NOT FINISH ON LINUX AT ALL.** GNU ld reads `-export_dynamic` as
+  `-e xport_dynamic`, the **entry symbol**: it warns `cannot find entry symbol
+  xport_dynamic`, links anyway, and the executable begins in the middle of
+  nothing and spins at 100% for ever. Apple's spelling was tried SECOND and
+  GNU/ELF's third, so the working flag was never reached — with `2>/dev/null`
+  hiding the warning and nothing bounding the run, the build simply never
+  returned. An hour of a probe at 99% CPU is what named it. The ELF spelling
+  goes first now, and a link naming an entry symbol is refused however it is
+  spelled; macOS lands on `-rdynamic`, measured still running the C loop
+  (0.73 s against 1.27 for `--algol-loop`).
+
+  ⚠️ **THAT IS WHY THIS PROBE HAS NO BOUND AND `collector.sh` DOES.** The same
+  rule is already written down one section along — *a collector failure may be
+  a HANG, so each run is bounded* — and the probe runs a binary built from a
+  flag combination nothing has vouched for, which is strictly the more
+  dangerous thing to run. It is not bounded because `timeout` is coreutils and
+  macOS does not ship it, so the check here is the warning rather than a clock.
+  A portable bound is the better answer and wants more than a line.
+
   ⚠️ **macOS needs NO flag at all, which is why a wrong one went unnoticed.**
   The lookup succeeds with `-export_dynamic`, with `-rdynamic` and with
   nothing, so the hard-coded flag was never load-bearing here and could not
@@ -2464,8 +2586,8 @@ fails on Windows, so a tested `lib` was found on two platforms and not the
 third.
 
 ⚠️ **It would have caught NEITHER on a Unix, which was checked rather than
-assumed.** With the directory test put back it still passes 9 of 9 on macOS —
-`fopen` on a directory succeeding here is exactly why the defect reached
+assumed.** With the directory test put back it still passes every check on
+macOS — `fopen` on a directory succeeding here is exactly why the defect reached
 Windows undetected. So the separator defect is guarded by a Parser unit test
 handing `FolderOf` a literal backslash, and the directory defect by this script
 running in the **windows** workflow. What it guards everywhere is the layout

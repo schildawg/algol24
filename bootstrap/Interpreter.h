@@ -7,6 +7,7 @@
 Value f_setprogramarguments(Value **cells, Value *args, int32_t count);
 Value f_suppressoutput(Value **cells, Value *args, int32_t count);
 Value f_rendered(Value **cells, Value *args, int32_t count);
+Value f_hostsequence(Value **cells, Value *args, int32_t count);
 Value f_stringify(Value **cells, Value *args, int32_t count);
 Value f_parsednumber(Value **cells, Value *args, int32_t count);
 Value f_labelat(Value **cells, Value *args, int32_t count);
@@ -18,6 +19,7 @@ extern Value v_outputsuppressed;
 extern bool d_outputsuppressed;
 extern Value fn_suppressoutput;
 extern Value fn_rendered;
+extern Value fn_hostsequence;
 extern Value fn_stringify;
 extern Value v_interpVcollectVevery;
 extern bool d_interpVcollectVevery;

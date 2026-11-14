@@ -17,8 +17,8 @@
 #
 # ⚠️ IT WOULD HAVE CAUGHT NEITHER OF THOSE ON A UNIX, and that was checked
 # rather than assumed: with the directory test put back, this script still
-# passes 9 of 9 on macOS -- because fopen on a directory SUCCEEDS here, which
-# is precisely why the defect reached Windows undetected.  So:
+# passes every check on macOS -- because fopen on a directory SUCCEEDS here,
+# which is precisely why the defect reached Windows undetected.  So:
 #
 #   - run on Windows, where fopen on a directory fails, it has teeth for the
 #     second defect, and the windows workflow runs it for that reason;
@@ -180,7 +180,7 @@ esac
 # find a library installed in the prefix, on any of the three platforms.
 #
 # ⚠️ IT BUILDS ITS OWN --ffi algc AND NEVER USES bootstrap/algc, because one of
-# those fails 0174 and DEF-37 under the main corpus -- the trap vm/conform.sh
+# those fails 0174, 0210 and 0225 under the main corpus -- the trap vm/conform.sh
 # avoids the same way.
 #
 # ⚠️ SKIPPED RATHER THAN FAILED where libffi or a shared library cannot be
@@ -190,10 +190,13 @@ esac
 # ones.
 case $(uname -s 2>/dev/null || echo unknown) in
     Darwin) SHIM=libprobeffi.dylib; GONE_SHIM=libnowhereffi.dylib
+            HERE_SHIM=libhereffi.dylib
             SHIM_FLAGS="-dynamiclib" ;;
     Linux)  SHIM=libprobeffi.so;    GONE_SHIM=libnowhereffi.so
+            HERE_SHIM=libhereffi.so
             SHIM_FLAGS="-shared -fPIC" ;;
     *)      SHIM=libprobeffi.dll;   GONE_SHIM=libnowhereffi.dll
+            HERE_SHIM=libhereffi.dll
             SHIM_FLAGS="-shared" ;;
 esac
 
@@ -206,7 +209,7 @@ cat > "$WORK/probe.c" <<'C'
 int alg_probe_twice(int n) { return n * 2; }
 C
 
-if "${CC:-cc}" -std=c11 -O2 -DALG_FFI -o "$P/bin/algc" "$ROOT"/bootstrap/*.c -lffi \
+if "${CC:-cc}" -std=c11 -O2 -DALG_FFI -o "$P/bin/algc" "$ROOT"/bootstrap/*.c -lffi -lm \
         > "$WORK/shim.log" 2>&1 &&
    "${CC:-cc}" $SHIM_FLAGS -o "$P/share/algol24/lib/$SHIM" "$WORK/probe.c" \
         >> "$WORK/shim.log" 2>&1; then
@@ -229,6 +232,25 @@ UNIT
     check "a shim is found where its unit is" "42" \
           "$("$P/bin/algc" prog.a24 2>&1 | tail -1)"
 
+    # ⚠️ AND IN THE WORKING DIRECTORY, which a unit is found in [MOD-002] and a
+    # shim was not until 0.4.1.  This is the shape a library is DEVELOPED in --
+    # units and shims in one directory, the compiler installed elsewhere -- so
+    # it was the first thing the library's own suite did and the first thing
+    # that failed, on Linux alone.  macOS and Windows hid it by searching the
+    # current directory in their own loaders, which is why only the platform
+    # that does not could show it.
+    cd "$ROOT"
+    # shellcheck disable=SC2086
+    "${CC:-cc}" $SHIM_FLAGS -o "$P/work/$HERE_SHIM" "$WORK/probe.c" \
+        >> "$WORK/shim.log" 2>&1
+
+    printf "function Here (N : Integer) : Integer;\n    external 'alg_probe_twice' in '%s';\n\nWriteLn (Here (21));\n" \
+        "$HERE_SHIM" > "$P/work/here.a24"
+
+    cd "$P/work"
+    check "a shim is found in the working directory" "42" \
+          "$("$P/bin/algc" here.a24 2>&1 | tail -1)"
+
     # And a shim that is nowhere names the places it looked, which is the
     # whole of that diagnostic's job: the commonest cause is a library
     # installed somewhere the processor does not look, and a message naming
@@ -246,6 +268,52 @@ UNIT
            echo "  FAIL  a missing shim names the places it looked"
            echo "        got: $GONE" ;;
     esac
+
+    # ------------------------------------------- a shim INSIDE the program --
+    #
+    # ⚠️ NO LIBRARY NAME MEANS THE RUNNING PROGRAM [FUN-014], AND THAT IS A
+    # PROPERTY OF THE LINK.  A shim compiled into the program is reached by a
+    # by-name lookup only if the executable EXPORTS its own symbols, which an
+    # ELF binary does not do unless it was linked to: `-rdynamic`.  Without it
+    # the program builds and then answers `No foreign symbol` at its first
+    # call, on Linux alone -- Mach-O needs nothing and PE wants
+    # --export-all-symbols, so macOS and Windows hide it.
+    #
+    # ⚠️ NOTHING ELSE HERE BUILDS THIS SHAPE, which is why it was found
+    # downstream rather than by a gate.  Every other check loads a shim from a
+    # FILE; a program that links its own C and resolves it from itself is what
+    # a self-contained application is, and algol24-library's example app is
+    # one.  It answered `No foreign symbol 'alg_random_seed'` there, with a
+    # comment in its build script asserting ELF needed no flag.
+    #
+    # ⚠️ IT ALSO EXERCISES THE libm HALF of that rule, since the emitted
+    # program links -lm and calls a bare `external 'atan'` -- the two things a
+    # build has to arrange for [FUN-014] to mean what it says, in one check.
+    EXPORT_FLAG=''
+    case $(uname -s 2>/dev/null || echo unknown) in
+        Darwin) ;;
+        Linux)  EXPORT_FLAG='-rdynamic' ;;
+        *)      EXPORT_FLAG='-Wl,--export-all-symbols' ;;
+    esac
+
+    mkdir -p "$P/self"
+    printf "function Twice (N : Integer) : Integer;\n    external 'alg_probe_twice';\n\nfunction ATan (X : Double) : Double;\n    external 'atan';\n\nWriteLn (Twice (21), ' ', ATan (0.0));\n" \
+        > "$P/self/prog.a24"
+
+    # shellcheck disable=SC2086
+    if "$P/bin/algc" --compile --out="$P/self" "$P/self/prog.a24" \
+            >> "$WORK/shim.log" 2>&1 &&
+       "${CC:-cc}" -std=c11 -O2 -DALG_FFI $EXPORT_FLAG -o "$P/self/prog" \
+            "$P/self"/*.c "$WORK/probe.c" -lffi -lm \
+            >> "$WORK/shim.log" 2>&1; then
+
+        check "a shim linked into the program is reached by name" "42 0.0" \
+              "$("$P/self/prog" 2>&1 | tail -1)"
+    else
+        FAIL=$((FAIL + 1))
+        echo "  FAIL  a program with its shim linked in would not build"
+        tail -3 "$WORK/shim.log" | sed 's/^/        /'
+    fi
 else
     cd "$ROOT"
     echo "  note: no --ffi algc or no shared library here, so [FUN-017] goes unasked"

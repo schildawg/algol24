@@ -1,6 +1,6 @@
 # The Algol-24 Programming Language Specification
 
-> **Algol-24 v0.4.0.** Nineteen chapters and three annexes. Every rule is
+> **Algol-24 v0.4.1.** Nineteen chapters and three annexes. Every rule is
 > decided — what the language should do — and every rule is claimed by a case: a
 > program in `conformance/`, a refusal in `refusals/`, or a reproduction in
 > `defects/`. `spec/spec.sh` prints how many there are and checks that each
@@ -8731,6 +8731,22 @@ arguments are marshalled: an Integer or a Boolean passes as a machine word, a
 Double as a double, a String as a NUL-terminated C string, and a `Pointer` as
 itself [TYP-013].
 
+⚠️ **"ALREADY LINKED" IS A PROPERTY OF THE BUILD AND NOT OF THE LANGUAGE**, and
+two things have to be true of it. The library must be **loaded** — a linker that
+drops one nothing references leaves its symbols nowhere, which is why a
+processor offering this has to reference the C library's math itself rather than
+merely pass `-lm`. And a symbol compiled **into the program** must be
+*exported*: an executable's own symbols do not enter the table a by-name lookup
+searches unless it was linked to export them, so `-rdynamic` on ELF and
+`--export-all-symbols` on PE, where Mach-O needs nothing. Neither is
+discoverable from the program text, and a build that gets either wrong fails at
+the call rather than at the link.
+
+**That is a conformance limit worth naming**: this rule can be satisfied or not
+by how a correct program is *built*, which is true of nothing else in this
+specification. A processor can only answer for the binary it is, and
+`./installed.sh` is where this implementation holds itself to both halves.
+
 **THE LANGUAGE DEFINES THE CALL AND NOT THE CALLEE**, and this is the first
 place that sentence has been needed. What a foreign function does, whether the
 symbol exists, and whether the declared types match the C ones are all outside
@@ -8964,8 +8980,16 @@ a limitation.
 
 **[FUN-017]**  A library **name** in an `in` clause is searched for the way a
 module name is [MOD-002]: beside the **running binary** first, then in an
-**installed library** if there is one, and only then wherever the operating
-system itself looks.
+**installed library** if there is one, then in the **working directory**, and
+only then wherever the operating system itself looks.
+
+⚠️ **The working directory is last of ours rather than second**, which is where
+[MOD-002] puts it for a unit. A shim found there is the one case the two
+searches order differently, and the reason is that this rule arrived a release
+after the other: placing it second would change which file an existing program
+opens, where placing it last can only turn a failure into a success. A unit
+taken from the working directory may therefore pair with a shim taken from an
+install — which needs a name duplicated in both places to happen at all.
 
 **A name holding a path separator is that exact file**, and nothing is
 searched. That is how a program says *this one and no looking* —
@@ -11402,7 +11426,9 @@ where to copy one.
 **A unit that calls into C needs its shared objects found too**, and that is
 [FUN-017]: the same directories, asked a different question. A module path
 alone would resolve the source and fail at the first foreign call, which is
-most of what an installed library is.
+most of what an installed library is. The working directory is one of those
+directories for both, though [FUN-017] asks it later in its order than this
+rule does — the note there says why.
 
     conformance  0082-module-import.a24
 
@@ -12010,7 +12036,39 @@ than `3`. `WriteLn ()` is the newline on its own, which is the same rule and not
 a second form: rendering no values gives the empty string.
 
     conformance  0145-a-builtin-with-the-wrong-arity.a24
-    defect       DEF-37-foreign-misreads-an-interpreted-list.a24
+    conformance  0225-foreign-takes-the-lists-a-program-built.a24
+
+##### conformance/0225-foreign-takes-the-lists-a-program-built.a24
+
+```algol24
+// Foreign is a built-in, so a program may call it directly and hand it Lists
+// it built itself.  Those reach the foreign call as the Lists they are: one
+// argument here, under every processor, in every run.
+var Types := ['String'];
+var Args  := ['abc'];
+
+try
+    WriteLn (Foreign ('strlen', '', Types, 'Integer', Args));
+except
+    on e : String do WriteLn (e);
+end
+
+// An external declaration reaches the same call by another road, and the two
+// must answer alike -- here, as a build without foreign calls must [INI-008].
+function TextLength (S : String) : Integer; external 'strlen';
+
+try
+    WriteLn (TextLength ('abc'));
+except
+    on e : String do WriteLn (e);
+end
+```
+
+```console
+$ algc conformance/0225-foreign-takes-the-lists-a-program-built.a24
+Foreign calls are not available in this build: 'strlen' cannot be reached.
+Foreign calls are not available in this build: 'strlen' cannot be reached.
+```
 
 ##### conformance/0159-write-takes-any-number-of-values.a24
 
@@ -12924,6 +12982,12 @@ them answers a status code to be checked or ignored.
 **`GetDir` takes nothing.** Turbo Pascal's selects a drive, and this language
 runs where there are none; an argument that could never change the answer would
 only read as though it might.
+
+**`GetDir` separates with `/` on every host**, Windows included, where it
+answers `C:/work/here` rather than the host's `C:\work\here`. A program joins a
+name on with `GetDir () + '/' + Name`, and that has to produce one path in one
+spelling, not two separators that compare unequal to a path the program built
+itself. Every Windows call a program reaches accepts `/`, so nothing is lost.
 
 **`Entries` answers a name, never a path.** Each element is the entry's own
 name as the directory records it, so a program wanting a path joins it to the

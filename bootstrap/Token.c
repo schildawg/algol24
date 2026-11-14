@@ -33,6 +33,7 @@ static const char *t_token_init_4_tokentype_string_integer[] = { "TypeOfToken : 
 
 Value f_definesubrange(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    Value q_0, q_1;
     alg_arity(count, 3);
     int32_t rt_base = alg_root_top;
     alg_root(args, count);
@@ -50,7 +51,7 @@ Value f_definesubrange(Value **cells, Value *args, int32_t count) {
     (void)v_at;
     alg_root(&v_at, 1);
     alg_hold_top = rh_2;
-    (void)((v_at = alg_hold(alg_invoke((alg_declared(d_subrangeVnames, "SUBRANGE_NAMES"), v_subrangeVnames), "IndexOf", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){v_name}, 1))}, 1))));
+    (void)((v_at = alg_hold((q_0 = alg_hold((alg_declared(d_subrangeVnames, "SUBRANGE_NAMES"), v_subrangeVnames)), alg_invoke(q_0, "IndexOf", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){v_name}, 1))}, 1)))));
     alg_hold_top = rh_2;
     if (alg_truthy(alg_hold(alg_greater_equal(v_at, alg_int(0))))) {
         {
@@ -66,7 +67,7 @@ Value f_definesubrange(Value **cells, Value *args, int32_t count) {
         }
     }
     alg_hold_top = rh_2;
-    (void)(alg_hold(alg_invoke((alg_declared(d_subrangeVnames, "SUBRANGE_NAMES"), v_subrangeVnames), "Add", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){v_name}, 1))}, 1)));
+    (void)(alg_hold((q_1 = alg_hold((alg_declared(d_subrangeVnames, "SUBRANGE_NAMES"), v_subrangeVnames)), alg_invoke(q_1, "Add", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){v_name}, 1))}, 1))));
     alg_hold_top = rh_2;
     (void)(alg_hold(alg_invoke((alg_declared(d_subrangeVlows, "SUBRANGE_LOWS"), v_subrangeVlows), "Add", (Value[]){v_low}, 1)));
     alg_hold_top = rh_2;
@@ -79,6 +80,7 @@ Value f_definesubrange(Value **cells, Value *args, int32_t count) {
 
 Value f_subrangeindex(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    Value q_0;
     alg_arity(count, 1);
     int32_t rt_base = alg_root_top;
     alg_root(args, count);
@@ -86,7 +88,7 @@ Value f_subrangeindex(Value **cells, Value *args, int32_t count) {
     (void)v_name;
     alg_root(&v_name, 1);
     int32_t rh_4 = alg_hold_top;
-    Value ret_2 = alg_hold(alg_invoke((alg_declared(d_subrangeVnames, "SUBRANGE_NAMES"), v_subrangeVnames), "IndexOf", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){v_name}, 1))}, 1));
+    Value ret_2 = alg_hold((q_0 = alg_hold((alg_declared(d_subrangeVnames, "SUBRANGE_NAMES"), v_subrangeVnames)), alg_invoke(q_0, "IndexOf", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){v_name}, 1))}, 1)));
     alg_root_top = rt_base;
     return ret_2;
     alg_hold_top = rh_4;
@@ -230,11 +232,12 @@ static Value m_token_init_4_tokentype_string_integer(Value v_this, Value *args, 
 
 static Value m_token_tostring_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
     int32_t rh_10 = alg_hold_top;
-    Value ret_15 = alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_str(alg_property(v_this, "TypeOfToken"))), alg_char_value(32))), alg_property(v_this, "Lexeme"))), alg_char_value(32))), alg_property(v_this, "Literal")));
+    Value ret_15 = alg_hold((q_1 = alg_hold(alg_add(alg_hold((q_0 = alg_hold(alg_add(alg_hold(alg_str(alg_property(v_this, "TypeOfToken"))), alg_char_value(32))), alg_add(q_0, alg_property(v_this, "Lexeme")))), alg_char_value(32))), alg_add(q_1, alg_property(v_this, "Literal"))));
     alg_root_top = rt_base;
     return ret_15;
     alg_hold_top = rh_10;
