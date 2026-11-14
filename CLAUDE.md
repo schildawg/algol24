@@ -238,9 +238,52 @@ arity warning would have diverged every case with a wrong-count call in it,
   keeps it honest.** One uniform entry per opcode in the shape of the 1987 IBM
   Macro Assembler reference — Encoding, Stack, Operation, Satisfies, Raises,
   See also — written toward an assembly-like front end that would make the
-  mnemonics user-facing syntax. **All 78 entries exist**, grouped by what an
-  instruction is for with an alphabetical index, and `./vm/reference.sh` holds
-  every one of them to `OpCode.a24`.
+  mnemonics user-facing syntax. **Every opcode has an entry**, grouped by what
+  an instruction is for with an alphabetical index, and `./vm/reference.sh`
+  holds every one of them to `OpCode.a24`. The count that used to stand in
+  this sentence said 78 where the file carried 80 — the script prints the
+  figure, having counted it.
+
+  ⚠️ **EVERY ENTRY CARRIES ONE EXAMPLE, AND IT IS THE MACHINE'S OWN OUTPUT.**
+  A whole program — not a fragment — and the window of `algvm --list` where
+  that instruction appears. `vm/reference.sh` writes each program out, lists
+  it, and requires the window back **contiguously and in order**, so eighty
+  hand-copied disassemblies cannot quietly drift the first time the emitter
+  changes. That is `conform.sh`'s bargain applied to a reference: the example
+  and the thing it describes are one text.
+
+  ⚠️ **`./vm/reference.sh --examples` REWRITES every window from live output**,
+  keeping each one's shape — the same chunk, the same lines before and after —
+  and finding the instruction by its own text first, its mnemonic second. It
+  is what makes the check affordable: an emitter change moves most of the
+  offsets at once, and a check whose repair is seventy-six hand edits is a
+  check that gets deleted. `vm/dispatch.sh`'s generate/`--check` split, with
+  the default the other way round.
+
+  ⚠️ **A LEADING `== name ==` IS AN ASSERTION ABOUT WHICH CHUNK, not a line the
+  window sits next to.** An example inside a subprogram names its chunk and
+  then shows a window from the middle of it, so a literal contiguity test
+  fails on exactly those five. The checker locates the header and confines the
+  search to that chunk.
+
+  ⚠️ **Four entries are NOT RUN and say so**, because the only program that
+  reaches them declares three hundred globals: `OP_LONG` and the three long
+  global forms. Same shape as the `variable-width` and `not-an-opcode`
+  exemptions — a marker beside its reason, counted and named in the report
+  rather than hidden.
+
+  ⚠️ **The three `OP_SUBRANGE` at the head of every script are the machine
+  registering the language's own subranges**, before a program's first
+  statement. They are noise in every example but `OP_SUBRANGE`'s own, which is
+  why no window opens on them — and why that one entry shows the FOURTH, the
+  one a `type` declaration adds.
+
+  ⚠️ **Two awk traps cost a round each here.** An apostrophe inside a
+  single-quoted awk program closes the shell string, and the error arrives as
+  `syntax error near unexpected token` pointing at a brace sixty lines away.
+  And `close()` on a file read with `getline` REWINDS it, so reading the first
+  line, closing, then looping read line one twice — every window came back
+  with its first line doubled.
 
   ⚠️ **What no script can check is whether a sentence is TRUE, and the
   citations are the sharpest case.** The checker confirms a cited rule exists,

@@ -163,6 +163,23 @@ stdout was adding the same character. Fixing the streams made seven of eight
 cases "fail" on bytes nobody could see. Two wrongs agreeing, found from the
 other side.
 
+### Every opcode's entry carries a worked example
+
+`vm/REFERENCE.md` is the opcode reference, written toward an assembly-like front
+end that would make the mnemonics user-facing syntax. Each of its entries now
+carries one example: a whole program, and the window of `algvm --list` where
+that instruction appears, as the disassembler prints it.
+
+They are not transcribed. `./vm/reference.sh` writes each program out, lists it,
+and requires the window back contiguously and in order — so eighty hand-copied
+disassemblies cannot quietly drift the first time the emitter changes.
+`./vm/reference.sh --examples` rewrites every window from live output, which is
+what makes the check affordable: an emitter change moves most of the offsets at
+once, and a check whose repair is seventy-six hand edits is a check that gets
+deleted. Of the eighty, **76 run** and are compared against the machine; four
+say they are not, because the only program that reaches them declares three
+hundred globals.
+
 ### Upgrading
 
 Nothing to change, and one thing to know: **a compiled program's operands now
