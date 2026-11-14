@@ -63,6 +63,7 @@ static Value m_filemethod_arity_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_filemethod_call_2(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -73,7 +74,7 @@ static Value m_filemethod_call_2(Value v_this, Value *args, int32_t count) {
     (void)v_arguments;
     alg_root(&v_arguments, 1);
     int32_t rh_345 = alg_hold_top;
-    Value ret_3 = alg_hold(alg_invoke(alg_property(v_this, "Receiver"), "Invoke", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_str(alg_hold(alg_property(alg_property(v_this, "Name"), "Lexeme"))))}, 1)), v_arguments}, 2));
+    Value ret_3 = alg_hold((q_0 = alg_hold(alg_property(v_this, "Receiver")), q_1 = alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_str(alg_hold(alg_property(alg_property(v_this, "Name"), "Lexeme"))))}, 1)), alg_invoke(q_0, "Invoke", (Value[]){q_1, v_arguments}, 2)));
     alg_root_top = rt_base;
     return ret_3;
     alg_hold_top = rh_345;
@@ -108,11 +109,12 @@ static Value i_objfile(Value v_this, Value *args, int32_t count) {
 
 static Value m_objfile_init_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
     int32_t rh_347 = alg_hold_top;
-    (void)(alg_hold(alg_set_property(v_this, "Handle", alg_hold(alg_text_file()))));
+    (void)(alg_hold((q_0 = alg_hold(v_this), alg_set_property(q_0, "Handle", alg_hold(alg_text_file())))));
     alg_hold_top = rh_347;
     Value ret_7 = alg_nil();
     alg_root_top = rt_base;
@@ -215,6 +217,7 @@ static Value m_objfile_get_1_token(Value v_this, Value *args, int32_t count) {
 
 static Value m_objfile_invoke_2_string_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -226,7 +229,7 @@ static Value m_objfile_invoke_2_string_list(Value v_this, Value *args, int32_t c
     alg_root(&v_arguments, 1);
     int32_t rh_349 = alg_hold_top;
     if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("assign"))))) {
-        Value ret_21 = alg_hold(alg_invoke(alg_property(v_this, "Handle"), "Assign", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1));
+        Value ret_21 = alg_hold((q_0 = alg_hold(alg_property(v_this, "Handle")), alg_invoke(q_0, "Assign", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
         alg_root_top = rt_base;
         return ret_21;
     }
@@ -256,13 +259,13 @@ static Value m_objfile_invoke_2_string_list(Value v_this, Value *args, int32_t c
     }
     alg_hold_top = rh_349;
     if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("write"))))) {
-        Value ret_26 = alg_hold(alg_invoke(alg_property(v_this, "Handle"), "Write", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1));
+        Value ret_26 = alg_hold((q_1 = alg_hold(alg_property(v_this, "Handle")), alg_invoke(q_1, "Write", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
         alg_root_top = rt_base;
         return ret_26;
     }
     alg_hold_top = rh_349;
     if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("writeln"))))) {
-        Value ret_27 = alg_hold(alg_invoke(alg_property(v_this, "Handle"), "WriteLn", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1));
+        Value ret_27 = alg_hold((q_2 = alg_hold(alg_property(v_this, "Handle")), alg_invoke(q_2, "WriteLn", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
         alg_root_top = rt_base;
         return ret_27;
     }
@@ -286,7 +289,7 @@ static Value m_objfile_invoke_2_string_list(Value v_this, Value *args, int32_t c
     }
     alg_hold_top = rh_349;
     if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("rename"))))) {
-        Value ret_31 = alg_hold(alg_invoke(alg_property(v_this, "Handle"), "Rename", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1));
+        Value ret_31 = alg_hold((q_3 = alg_hold(alg_property(v_this, "Handle")), alg_invoke(q_3, "Rename", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
         alg_root_top = rt_base;
         return ret_31;
     }

@@ -122,6 +122,7 @@ static const char *t_parser_checkword_1_string[] = { "Word : String" };
 
 Value f_readwholefile(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    Value q_0;
     alg_arity(count, 1);
     int32_t rt_base = alg_root_top;
     alg_root(args, count);
@@ -147,7 +148,7 @@ Value f_readwholefile(Value **cells, Value *args, int32_t count) {
             alg_safe_point();
             {
                 int32_t rh_354 = alg_hold_top;
-                (void)(alg_hold(alg_invoke(v_result, "Append", (Value[]){alg_hold(alg_invoke(v_f, "ReadLn", NULL, 0))}, 1)));
+                (void)(alg_hold((q_0 = alg_hold(v_result), alg_invoke(q_0, "Append", (Value[]){alg_hold(alg_invoke(v_f, "ReadLn", NULL, 0))}, 1))));
                 alg_hold_top = rh_354;
                 (void)(alg_hold(alg_invoke(v_result, "Append", (Value[]){alg_char_value(10)}, 1)));
                 alg_hold_top = rh_354;
@@ -184,6 +185,7 @@ Value f_setmodulefolders(Value **cells, Value *args, int32_t count) {
 
 Value f_folderof(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    Value q_0, q_1;
     alg_arity(count, 1);
     int32_t rt_base = alg_root_top;
     alg_root(args, count);
@@ -204,9 +206,9 @@ Value f_folderof(Value **cells, Value *args, int32_t count) {
         alg_hold_top = rh_358;
         {
             int32_t rh_359 = alg_hold_top;
-            for (; (alg_hold_top = rh_359, alg_truthy(alg_hold(alg_less(v_i, alg_hold(alg_text_length(v_path)))))); (alg_hold_top = rh_359, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
+            for (; (alg_hold_top = rh_359, alg_truthy(alg_hold((q_0 = alg_hold(v_i), alg_less(q_0, alg_hold(alg_text_length(v_path))))))); (alg_hold_top = rh_359, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
                 alg_safe_point();
-                if (alg_truthy(alg_hold((or_0 = alg_hold(alg_equal(alg_hold(alg_subscript_get(v_path, v_i)), alg_char_value(47))), alg_truthy(or_0) ? or_0 : alg_hold(alg_equal(alg_hold(alg_subscript_get(v_path, v_i)), alg_hold(alg_char(alg_int(92))))))))) {
+                if (alg_truthy(alg_hold((or_0 = alg_hold(alg_equal(alg_hold(alg_subscript_get(v_path, v_i)), alg_char_value(47))), alg_truthy(or_0) ? or_0 : alg_hold((q_1 = alg_hold(alg_subscript_get(v_path, v_i)), alg_equal(q_1, alg_hold(alg_char(alg_int(92)))))))))) {
                     (void)((v_cut = v_i));
                 }
             }
@@ -232,6 +234,7 @@ Value f_folderof(Value **cells, Value *args, int32_t count) {
 
 Value f_libraryfolders(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    Value q_0;
     alg_arity(count, 0);
     int32_t rt_base = alg_root_top;
     alg_root(args, count);
@@ -248,7 +251,7 @@ Value f_libraryfolders(Value **cells, Value *args, int32_t count) {
         return ret_6;
     }
     alg_hold_top = rh_360;
-    Value ret_7 = alg_hold(alg_list_keep(alg_list_keep(alg_list(), alg_hold(alg_add(v_own, alg_literal("/lib")))), alg_hold(alg_add(v_own, alg_literal("/../share/algol24/lib")))));
+    Value ret_7 = alg_hold((q_0 = alg_hold(alg_add(v_own, alg_literal("/lib"))), alg_list_keep(alg_list_keep(alg_list(), q_0), alg_hold(alg_add(v_own, alg_literal("/../share/algol24/lib"))))));
     alg_root_top = rt_base;
     return ret_7;
     alg_hold_top = rh_360;
@@ -299,6 +302,7 @@ static Value m_parser_init_1_list(Value v_this, Value *args, int32_t count) {
 
 static Value m_parser_unitheader_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -315,7 +319,7 @@ static Value m_parser_unitheader_0(Value v_this, Value *args, int32_t count) {
         return ret_11;
     }
     alg_hold_top = rh_362;
-    if (alg_truthy(alg_hold(alg_not_equal(alg_hold(alg_property(alg_hold(alg_invoke(v_this, "PeekNext", NULL, 0)), "TypeOfToken")), e_tokentype_tokenVidentifier)))) {
+    if (alg_truthy(alg_hold((q_0 = alg_hold(alg_property(alg_hold(alg_invoke(v_this, "PeekNext", NULL, 0)), "TypeOfToken")), alg_not_equal(q_0, e_tokentype_tokenVidentifier))))) {
         Value ret_12 = alg_nil();
         alg_root_top = rt_base;
         return ret_12;
@@ -339,8 +343,8 @@ static Value m_parser_unitheader_0(Value v_this, Value *args, int32_t count) {
         return ret_13;
     }
     alg_hold_top = rh_362;
-    if (alg_truthy(alg_hold(alg_not_equal(v_expected, alg_hold(alg_str(alg_hold(alg_property(v_name, "Lexeme")))))))) {
-        alg_raise(alg_hold(alg_invoke(v_this, "Error", (Value[]){v_name, alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_literal("Unit '"), alg_hold(alg_str(alg_hold(alg_property(v_name, "Lexeme")))))), alg_literal("' must match its file name '"))), v_expected)), alg_literal("'.")))}, 2)));
+    if (alg_truthy(alg_hold((q_1 = alg_hold(v_expected), alg_not_equal(q_1, alg_hold(alg_str(alg_hold(alg_property(v_name, "Lexeme"))))))))) {
+        alg_raise(alg_hold((q_3 = alg_hold(v_name), alg_invoke(v_this, "Error", (Value[]){q_3, alg_hold(alg_add(alg_hold((q_2 = alg_hold(alg_add(alg_hold(alg_add(alg_literal("Unit '"), alg_hold(alg_str(alg_hold(alg_property(v_name, "Lexeme")))))), alg_literal("' must match its file name '"))), alg_add(q_2, v_expected))), alg_literal("'.")))}, 2))));
     }
     alg_hold_top = rh_362;
     Value ret_14 = alg_nil();
@@ -350,6 +354,7 @@ static Value m_parser_unitheader_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_parser_claimunit_2_token_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -369,8 +374,8 @@ static Value m_parser_claimunit_2_token_string(Value v_this, Value *args, int32_
     if (alg_truthy(alg_hold(alg_invoke(alg_property(v_this, "Claimed"), "Contains", (Value[]){v_folded}, 1)))) {
         {
             int32_t rh_364 = alg_hold_top;
-            if (alg_truthy(alg_hold(alg_not_equal(alg_hold(alg_str(alg_hold(alg_invoke(alg_property(v_this, "Claimed"), "Get", (Value[]){v_folded}, 1)))), v_path)))) {
-                alg_raise(alg_hold(alg_invoke(v_this, "Error", (Value[]){v_where, alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_literal("Two units whose names differ only in case: '"), alg_hold(alg_str(alg_hold(alg_invoke(alg_property(v_this, "Claimed"), "Get", (Value[]){v_folded}, 1)))))), alg_literal("' and '"))), v_path)), alg_literal("'. A unit name is matched without regard to "))), alg_literal("case.")))}, 2)));
+            if (alg_truthy(alg_hold((q_0 = alg_hold(alg_str(alg_hold(alg_invoke(alg_property(v_this, "Claimed"), "Get", (Value[]){v_folded}, 1)))), alg_not_equal(q_0, v_path))))) {
+                alg_raise(alg_hold((q_2 = alg_hold(v_where), alg_invoke(v_this, "Error", (Value[]){q_2, alg_hold(alg_add(alg_hold(alg_add(alg_hold((q_1 = alg_hold(alg_add(alg_hold(alg_add(alg_literal("Two units whose names differ only in case: '"), alg_hold(alg_str(alg_hold(alg_invoke(alg_property(v_this, "Claimed"), "Get", (Value[]){v_folded}, 1)))))), alg_literal("' and '"))), alg_add(q_1, v_path))), alg_literal("'. A unit name is matched without regard to "))), alg_literal("case.")))}, 2))));
             }
             alg_hold_top = rh_364;
         }
@@ -385,6 +390,7 @@ static Value m_parser_claimunit_2_token_string(Value v_this, Value *args, int32_
 
 static Value m_parser_unitstem_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3, q_4;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -412,7 +418,7 @@ static Value m_parser_unitstem_1_string(Value v_this, Value *args, int32_t count
                 if (alg_truthy(alg_hold((or_2 = alg_hold(alg_equal(alg_hold(alg_subscript_get(v_key, v_i)), alg_char_value(47))), alg_truthy(or_2) ? or_2 : alg_hold(alg_equal(alg_hold(alg_subscript_get(v_key, v_i)), alg_char_value(92))))))) {
                     {
                         int32_t rh_369 = alg_hold_top;
-                        (void)((v_stem = alg_hold(alg_copy(v_key, alg_hold(alg_add(v_i, alg_int(1))), alg_hold(alg_subtract(alg_hold(alg_subtract(alg_hold(alg_text_length(v_key)), v_i)), alg_int(1)))))));
+                        (void)((v_stem = alg_hold((q_1 = alg_hold(v_key), q_2 = alg_hold(alg_add(v_i, alg_int(1))), alg_copy(q_1, q_2, alg_hold(alg_subtract(alg_hold((q_0 = alg_hold(alg_text_length(v_key)), alg_subtract(q_0, v_i))), alg_int(1))))))));
                         alg_hold_top = rh_369;
                         (void)((v_i = alg_hold(alg_negate(alg_int(1)))));
                         alg_hold_top = rh_369;
@@ -424,8 +430,8 @@ static Value m_parser_unitstem_1_string(Value v_this, Value *args, int32_t count
         alg_root_top = rt_366;
     }
     alg_hold_top = rh_365;
-    if (alg_truthy(alg_hold((or_3 = alg_hold(alg_greater(alg_hold(alg_text_length(v_stem)), alg_int(4))), !alg_truthy(or_3) ? or_3 : alg_hold(alg_equal(alg_hold(alg_copy(v_stem, alg_hold(alg_subtract(alg_hold(alg_text_length(v_stem)), alg_int(4))), alg_int(4))), alg_literal(".a24"))))))) {
-        Value ret_16 = alg_hold(alg_copy(v_stem, alg_int(0), alg_hold(alg_subtract(alg_hold(alg_text_length(v_stem)), alg_int(4)))));
+    if (alg_truthy(alg_hold((or_3 = alg_hold(alg_greater(alg_hold(alg_text_length(v_stem)), alg_int(4))), !alg_truthy(or_3) ? or_3 : alg_hold(alg_equal(alg_hold((q_3 = alg_hold(v_stem), alg_copy(q_3, alg_hold(alg_subtract(alg_hold(alg_text_length(v_stem)), alg_int(4))), alg_int(4)))), alg_literal(".a24"))))))) {
+        Value ret_16 = alg_hold((q_4 = alg_hold(v_stem), alg_copy(q_4, alg_int(0), alg_hold(alg_subtract(alg_hold(alg_text_length(v_stem)), alg_int(4))))));
         alg_root_top = rt_base;
         return ret_16;
     }
@@ -441,6 +447,7 @@ static Value m_parser_unitstem_1_string(Value v_this, Value *args, int32_t count
 
 static Value m_parser_parse_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -456,7 +463,7 @@ static Value m_parser_parse_0(Value v_this, Value *args, int32_t count) {
             int32_t rh_371 = alg_hold_top;
             (void)(alg_hold(alg_invoke(alg_property(v_this, "Loaded"), "Put", (Value[]){alg_property(v_this, "FileName"), alg_bool(true)}, 2)));
             alg_hold_top = rh_371;
-            (void)(alg_hold(alg_invoke(v_this, "ClaimUnit", (Value[]){alg_hold(alg_invoke(v_this, "Peek", NULL, 0)), alg_property(v_this, "FileName")}, 2)));
+            (void)(alg_hold((q_0 = alg_hold(alg_invoke(v_this, "Peek", NULL, 0)), alg_invoke(v_this, "ClaimUnit", (Value[]){q_0, alg_property(v_this, "FileName")}, 2))));
             alg_hold_top = rh_371;
         }
     }
@@ -499,7 +506,7 @@ static Value m_parser_parse_0(Value v_this, Value *args, int32_t count) {
                             alg_root_top = rt_376;
                         }
                     } else {
-                        (void)(alg_hold(alg_invoke(v_statements, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Declaration", NULL, 0))}, 1)));
+                        (void)(alg_hold((q_1 = alg_hold(v_statements), alg_invoke(q_1, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Declaration", NULL, 0))}, 1))));
                     }
                 }
                 alg_hold_top = rh_373;
@@ -518,6 +525,7 @@ static Value m_parser_parse_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_parser_statement_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -537,9 +545,9 @@ static Value m_parser_statement_0(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(alg_hold(alg_not_equal(v_parsed, alg_nil())))) {
         {
             int32_t rh_379 = alg_hold_top;
-            (void)(alg_hold(alg_set_property(v_parsed, "Line", alg_hold(alg_property(v_where, "LineNumber")))));
+            (void)(alg_hold((q_0 = alg_hold(v_parsed), alg_set_property(q_0, "Line", alg_hold(alg_property(v_where, "LineNumber"))))));
             alg_hold_top = rh_379;
-            (void)(alg_hold(alg_set_property(v_parsed, "File", alg_hold(alg_str(alg_hold(alg_property(v_where, "File")))))));
+            (void)(alg_hold((q_1 = alg_hold(v_parsed), alg_set_property(q_1, "File", alg_hold(alg_str(alg_hold(alg_property(v_where, "File"))))))));
             alg_hold_top = rh_379;
         }
     }
@@ -555,6 +563,7 @@ static Value m_parser_statement_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_parser_statementbody_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -607,7 +616,7 @@ static Value m_parser_statementbody_0(Value v_this, Value *args, int32_t count) 
         return ret_30;
     }
     alg_hold_top = rh_380;
-    if (alg_truthy(alg_hold((or_4 = alg_hold(alg_invoke(v_this, "Check", (Value[]){e_tokentype_tokenVidentifier}, 1)), !alg_truthy(or_4) ? or_4 : alg_hold(alg_equal(alg_hold(alg_property(alg_hold(alg_invoke(v_this, "PeekNext", NULL, 0)), "TypeOfToken")), e_tokentype_tokenVcolon)))))) {
+    if (alg_truthy(alg_hold((or_4 = alg_hold(alg_invoke(v_this, "Check", (Value[]){e_tokentype_tokenVidentifier}, 1)), !alg_truthy(or_4) ? or_4 : alg_hold((q_0 = alg_hold(alg_property(alg_hold(alg_invoke(v_this, "PeekNext", NULL, 0)), "TypeOfToken")), alg_equal(q_0, e_tokentype_tokenVcolon))))))) {
         Value ret_31 = alg_hold(alg_invoke(v_this, "LabelStatement", NULL, 0));
         alg_root_top = rt_base;
         return ret_31;
@@ -690,6 +699,7 @@ static Value m_parser_statementbody_0(Value v_this, Value *args, int32_t count) 
 
 static Value m_parser_casestatement_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3, q_4, q_5, q_6, q_7, q_8;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -728,19 +738,19 @@ static Value m_parser_casestatement_0(Value v_this, Value *args, int32_t count) 
             alg_safe_point();
             {
                 int32_t rh_383 = alg_hold_top;
-                (void)((v_condition = alg_widen(alg_hold(alg_new(k_binaryexpr, (Value[]){v_left, alg_hold(alg_invoke(v_this, "Equals", NULL, 0)), alg_hold(alg_invoke(v_this, "Expression", NULL, 0))}, 3)), "Expr")));
+                (void)((v_condition = alg_widen(alg_hold((q_0 = alg_hold(v_left), q_1 = alg_hold(alg_invoke(v_this, "Equals", NULL, 0)), alg_new(k_binaryexpr, (Value[]){q_0, q_1, alg_hold(alg_invoke(v_this, "Expression", NULL, 0))}, 3))), "Expr")));
                 alg_hold_top = rh_383;
                 {
                     int32_t rh_384 = alg_hold_top;
                     while ((alg_hold_top = rh_384, alg_truthy(alg_hold(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVcomma}, 1))))) {
                         alg_safe_point();
-                        (void)((v_condition = alg_widen(alg_hold(alg_new(k_logicalexpr, (Value[]){v_condition, alg_hold(alg_invoke(v_this, "Either", NULL, 0)), alg_hold(alg_new(k_binaryexpr, (Value[]){v_left, alg_hold(alg_invoke(v_this, "Equals", NULL, 0)), alg_hold(alg_invoke(v_this, "Expression", NULL, 0))}, 3))}, 3)), "Expr")));
+                        (void)((v_condition = alg_widen(alg_hold((q_4 = alg_hold(v_condition), q_5 = alg_hold(alg_invoke(v_this, "Either", NULL, 0)), alg_new(k_logicalexpr, (Value[]){q_4, q_5, alg_hold((q_2 = alg_hold(v_left), q_3 = alg_hold(alg_invoke(v_this, "Equals", NULL, 0)), alg_new(k_binaryexpr, (Value[]){q_2, q_3, alg_hold(alg_invoke(v_this, "Expression", NULL, 0))}, 3)))}, 3))), "Expr")));
                     }
                 }
                 alg_hold_top = rh_383;
                 (void)(alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVcolon, alg_literal("Expect ':' after condition.")}, 2)));
                 alg_hold_top = rh_383;
-                (void)((v_branch = alg_hold(alg_new(k_ifstmt, (Value[]){v_condition, alg_hold(alg_invoke(v_this, "Statement", NULL, 0)), alg_nil()}, 3))));
+                (void)((v_branch = alg_hold((q_6 = alg_hold(v_condition), alg_new(k_ifstmt, (Value[]){q_6, alg_hold(alg_invoke(v_this, "Statement", NULL, 0)), alg_nil()}, 3)))));
                 alg_hold_top = rh_383;
                 if (alg_truthy(alg_hold(alg_equal(v_top, alg_nil())))) {
                     (void)((v_top = v_branch));
@@ -758,10 +768,10 @@ static Value m_parser_casestatement_0(Value v_this, Value *args, int32_t count) 
         }
     }
     alg_hold_top = rh_381;
-    if (alg_truthy(alg_hold(alg_equal(alg_hold(alg_property(alg_hold(alg_invoke(v_this, "Previous", NULL, 0)), "TypeOfToken")), e_tokentype_tokenVelse)))) {
+    if (alg_truthy(alg_hold((q_7 = alg_hold(alg_property(alg_hold(alg_invoke(v_this, "Previous", NULL, 0)), "TypeOfToken")), alg_equal(q_7, e_tokentype_tokenVelse))))) {
         {
             int32_t rh_385 = alg_hold_top;
-            (void)(alg_hold(alg_set_property(v_current, "ElseBranch", alg_hold(alg_invoke(v_this, "BodyStatement", NULL, 0)))));
+            (void)(alg_hold((q_8 = alg_hold(v_current), alg_set_property(q_8, "ElseBranch", alg_hold(alg_invoke(v_this, "BodyStatement", NULL, 0))))));
             alg_hold_top = rh_385;
             (void)(alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVend, alg_literal("Expected 'end'.")}, 2)));
             alg_hold_top = rh_385;
@@ -779,11 +789,12 @@ static Value m_parser_casestatement_0(Value v_this, Value *args, int32_t count) 
 
 static Value m_parser_equals_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
     int32_t rh_386 = alg_hold_top;
-    Value ret_47 = alg_hold(alg_new(k_token, (Value[]){e_tokentype_tokenVequal, alg_char_value(61), alg_nil(), alg_hold(alg_property(alg_hold(alg_invoke(v_this, "Previous", NULL, 0)), "LineNumber"))}, 4));
+    Value ret_47 = alg_hold((q_0 = alg_hold(e_tokentype_tokenVequal), alg_new(k_token, (Value[]){q_0, alg_char_value(61), alg_nil(), alg_hold(alg_property(alg_hold(alg_invoke(v_this, "Previous", NULL, 0)), "LineNumber"))}, 4)));
     alg_root_top = rt_base;
     return ret_47;
     alg_hold_top = rh_386;
@@ -794,11 +805,12 @@ static Value m_parser_equals_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_parser_either_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
     int32_t rh_387 = alg_hold_top;
-    Value ret_49 = alg_hold(alg_new(k_token, (Value[]){e_tokentype_tokenVor, alg_literal("or"), alg_nil(), alg_hold(alg_property(alg_hold(alg_invoke(v_this, "Previous", NULL, 0)), "LineNumber"))}, 4));
+    Value ret_49 = alg_hold((q_0 = alg_hold(e_tokentype_tokenVor), alg_new(k_token, (Value[]){q_0, alg_literal("or"), alg_nil(), alg_hold(alg_property(alg_hold(alg_invoke(v_this, "Previous", NULL, 0)), "LineNumber"))}, 4)));
     alg_root_top = rt_base;
     return ret_49;
     alg_hold_top = rh_387;
@@ -891,6 +903,7 @@ static Value m_parser_ifstatement_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_parser_forstatement_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -975,7 +988,7 @@ static Value m_parser_forstatement_0(Value v_this, Value *args, int32_t count) {
     alg_hold_top = rh_392;
     (void)(alg_set_property(v_this, "LoopDepth", alg_hold(alg_subtract(alg_property(v_this, "LoopDepth"), alg_int(1)))));
     alg_hold_top = rh_392;
-    (void)(alg_hold(alg_invoke(alg_property(v_this, "LoopLabels"), "RemoveAt", (Value[]){alg_hold(alg_subtract(alg_hold(alg_property(alg_property(v_this, "LoopLabels"), "Length")), alg_int(1)))}, 1)));
+    (void)(alg_hold((q_0 = alg_hold(alg_property(v_this, "LoopLabels")), alg_invoke(q_0, "RemoveAt", (Value[]){alg_hold(alg_subtract(alg_hold(alg_property(alg_property(v_this, "LoopLabels"), "Length")), alg_int(1)))}, 1))));
     alg_hold_top = rh_392;
     if (alg_truthy(alg_hold(alg_equal(v_condition, alg_nil())))) {
         (void)((v_condition = alg_widen(alg_hold(alg_new(k_literalexpr, (Value[]){alg_bool(true)}, 1)), "Expr")));
@@ -1016,6 +1029,7 @@ static Value m_parser_forstatement_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_parser_whilestatement_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -1042,7 +1056,7 @@ static Value m_parser_whilestatement_0(Value v_this, Value *args, int32_t count)
     alg_hold_top = rh_398;
     (void)(alg_set_property(v_this, "LoopDepth", alg_hold(alg_subtract(alg_property(v_this, "LoopDepth"), alg_int(1)))));
     alg_hold_top = rh_398;
-    (void)(alg_hold(alg_invoke(alg_property(v_this, "LoopLabels"), "RemoveAt", (Value[]){alg_hold(alg_subtract(alg_hold(alg_property(alg_property(v_this, "LoopLabels"), "Length")), alg_int(1)))}, 1)));
+    (void)(alg_hold((q_0 = alg_hold(alg_property(v_this, "LoopLabels")), alg_invoke(q_0, "RemoveAt", (Value[]){alg_hold(alg_subtract(alg_hold(alg_property(alg_property(v_this, "LoopLabels"), "Length")), alg_int(1)))}, 1))));
     alg_hold_top = rh_398;
     Value v_loop = alg_hold(alg_new(k_whilestmt, (Value[]){v_condition, v_body}, 2));
     (void)v_loop;
@@ -1100,6 +1114,7 @@ static Value m_parser_returnstatement_0(Value v_this, Value *args, int32_t count
 
 static Value m_parser_recordprivate_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -1110,7 +1125,7 @@ static Value m_parser_recordprivate_1(Value v_this, Value *args, int32_t count) 
     if (alg_truthy(alg_hold((or_18 = alg_hold((or_17 = alg_hold((or_16 = alg_is_class(v_decl, k_functionstmt), alg_truthy(or_16) ? or_16 : alg_is_class(v_decl, k_classstmt))), alg_truthy(or_17) ? or_17 : alg_is_class(v_decl, k_objectstmt))), alg_truthy(or_18) ? or_18 : alg_is_class(v_decl, k_varstmt))))) {
         {
             int32_t rh_402 = alg_hold_top;
-            (void)(alg_hold(alg_invoke(alg_property(v_this, "PrivateNames"), "Add", (Value[]){alg_hold(alg_str(alg_hold(alg_property(alg_hold(alg_property(v_decl, "Name")), "Lexeme"))))}, 1)));
+            (void)(alg_hold((q_0 = alg_hold(alg_property(v_this, "PrivateNames")), alg_invoke(q_0, "Add", (Value[]){alg_hold(alg_str(alg_hold(alg_property(alg_hold(alg_property(v_decl, "Name")), "Lexeme"))))}, 1))));
             alg_hold_top = rh_402;
             Value ret_64 = alg_nil();
             alg_root_top = rt_base;
@@ -1133,7 +1148,7 @@ static Value m_parser_recordprivate_1(Value v_this, Value *args, int32_t count) 
                     Value v_thename = alg_iterable_at(loop_65, at_65);
                     (void)v_thename;
                     alg_root(&v_thename, 1);
-                    (void)(alg_hold(alg_invoke(alg_property(v_this, "PrivateNames"), "Add", (Value[]){alg_hold(alg_str(alg_hold(alg_property(v_thename, "Lexeme"))))}, 1)));
+                    (void)(alg_hold((q_1 = alg_hold(alg_property(v_this, "PrivateNames")), alg_invoke(q_1, "Add", (Value[]){alg_hold(alg_str(alg_hold(alg_property(v_thename, "Lexeme"))))}, 1))));
                     alg_root_top = rt_405;
                 }
                 alg_root_top = rt_404;
@@ -1149,7 +1164,7 @@ static Value m_parser_recordprivate_1(Value v_this, Value *args, int32_t count) 
     if (alg_truthy(alg_is_class(v_decl, k_enumstmt))) {
         {
             int32_t rh_406 = alg_hold_top;
-            (void)(alg_hold(alg_invoke(alg_property(v_this, "PrivateNames"), "Add", (Value[]){alg_hold(alg_str(alg_hold(alg_property(alg_hold(alg_property(v_decl, "Name")), "Lexeme"))))}, 1)));
+            (void)(alg_hold((q_2 = alg_hold(alg_property(v_this, "PrivateNames")), alg_invoke(q_2, "Add", (Value[]){alg_hold(alg_str(alg_hold(alg_property(alg_hold(alg_property(v_decl, "Name")), "Lexeme"))))}, 1))));
             alg_hold_top = rh_406;
             {
                 int32_t rt_407 = alg_root_top;
@@ -1162,7 +1177,7 @@ static Value m_parser_recordprivate_1(Value v_this, Value *args, int32_t count) 
                     Value v_member = alg_iterable_at(loop_67, at_67);
                     (void)v_member;
                     alg_root(&v_member, 1);
-                    (void)(alg_hold(alg_invoke(alg_property(v_this, "PrivateNames"), "Add", (Value[]){alg_hold(alg_str(alg_hold(alg_property(v_member, "Lexeme"))))}, 1)));
+                    (void)(alg_hold((q_3 = alg_hold(alg_property(v_this, "PrivateNames")), alg_invoke(q_3, "Add", (Value[]){alg_hold(alg_str(alg_hold(alg_property(v_member, "Lexeme"))))}, 1))));
                     alg_root_top = rt_408;
                 }
                 alg_root_top = rt_407;
@@ -1184,6 +1199,7 @@ static Value m_parser_recordprivate_1(Value v_this, Value *args, int32_t count) 
 
 static Value m_parser_resolvemodule_2_token_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3, q_4, q_5;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -1210,7 +1226,7 @@ static Value m_parser_resolvemodule_2_token_string(Value v_this, Value *args, in
         {
             int32_t rt_410 = alg_root_top;
             int32_t rh_411 = alg_hold_top;
-            Value v_beside = alg_hold(alg_add(alg_hold(alg_add(v_dir, alg_char_value(47))), v_thefile));
+            Value v_beside = alg_hold((q_0 = alg_hold(alg_add(v_dir, alg_char_value(47))), alg_add(q_0, v_thefile)));
             (void)v_beside;
             alg_root(&v_beside, 1);
             alg_hold_top = rh_411;
@@ -1244,7 +1260,7 @@ static Value m_parser_resolvemodule_2_token_string(Value v_this, Value *args, in
             {
                 int32_t rt_414 = alg_root_top;
                 int32_t rh_415 = alg_hold_top;
-                Value v_installed = alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_str(v_folder)), alg_char_value(47))), v_thefile));
+                Value v_installed = alg_hold((q_1 = alg_hold(alg_add(alg_hold(alg_str(v_folder)), alg_char_value(47))), alg_add(q_1, v_thefile)));
                 (void)v_installed;
                 alg_root(&v_installed, 1);
                 alg_hold_top = rh_415;
@@ -1280,13 +1296,13 @@ static Value m_parser_resolvemodule_2_token_string(Value v_this, Value *args, in
             Value v_folder = alg_iterable_at(loop_74, at_74);
             (void)v_folder;
             alg_root(&v_folder, 1);
-            (void)((v_searched = alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(v_searched, alg_literal(", or '"))), alg_hold(alg_str(v_folder)))), alg_char_value(39)))));
+            (void)((v_searched = alg_hold(alg_add(alg_hold((q_2 = alg_hold(alg_add(v_searched, alg_literal(", or '"))), alg_add(q_2, alg_hold(alg_str(v_folder))))), alg_char_value(39)))));
             alg_root_top = rt_417;
         }
         alg_root_top = rt_416;
     }
     alg_hold_top = rh_409;
-    alg_raise(alg_hold(alg_invoke(v_this, "Error", (Value[]){v_where, alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_literal("Could not find module '"), v_modulename)), alg_literal("': no "))), v_thefile)), alg_literal(" in "))), v_searched)), alg_char_value(46)))}, 2)));
+    alg_raise(alg_hold((q_5 = alg_hold(v_where), alg_invoke(v_this, "Error", (Value[]){q_5, alg_hold(alg_add(alg_hold((q_4 = alg_hold(alg_add(alg_hold((q_3 = alg_hold(alg_add(alg_hold(alg_add(alg_literal("Could not find module '"), v_modulename)), alg_literal("': no "))), alg_add(q_3, v_thefile))), alg_literal(" in "))), alg_add(q_4, v_searched))), alg_char_value(46)))}, 2))));
     alg_hold_top = rh_409;
     Value ret_75 = alg_nil();
     alg_root_top = rt_base;
@@ -1295,6 +1311,7 @@ static Value m_parser_resolvemodule_2_token_string(Value v_this, Value *args, in
 
 static Value m_parser_usesstatement_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3, q_4, q_5;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -1325,13 +1342,13 @@ static Value m_parser_usesstatement_0(Value v_this, Value *args, int32_t count) 
         {
             int32_t rt_419 = alg_root_top;
             int32_t rh_420 = alg_hold_top;
-            Value v_seen = alg_hold(alg_new(k_modulestmt, (Value[]){v_where, alg_nil(), alg_hold(alg_list())}, 3));
+            Value v_seen = alg_hold((q_0 = alg_hold(v_where), alg_new(k_modulestmt, (Value[]){q_0, alg_nil(), alg_hold(alg_list())}, 3)));
             (void)v_seen;
             alg_root(&v_seen, 1);
             alg_hold_top = rh_420;
             (void)(alg_hold(alg_set_property(v_seen, "FileName", v_path)));
             alg_hold_top = rh_420;
-            (void)(alg_hold(alg_set_property(v_seen, "UnitName", alg_hold(alg_invoke(v_this, "UnitStem", (Value[]){v_path}, 1)))));
+            (void)(alg_hold((q_1 = alg_hold(v_seen), alg_set_property(q_1, "UnitName", alg_hold(alg_invoke(v_this, "UnitStem", (Value[]){v_path}, 1))))));
             alg_hold_top = rh_420;
             Value ret_76 = v_seen;
             alg_root_top = rt_base;
@@ -1345,7 +1362,7 @@ static Value m_parser_usesstatement_0(Value v_this, Value *args, int32_t count) 
     alg_hold_top = rh_418;
     (void)(alg_hold(alg_invoke(v_this, "ClaimUnit", (Value[]){v_where, v_path}, 2)));
     alg_hold_top = rh_418;
-    Value v_subscanner = alg_hold(alg_new(k_scanner, (Value[]){alg_hold(f_readwholefile(NULL, (Value[]){v_path}, 1)), v_path}, 2));
+    Value v_subscanner = alg_hold((q_2 = alg_hold(f_readwholefile(NULL, (Value[]){v_path}, 1)), alg_new(k_scanner, (Value[]){q_2, v_path}, 2)));
     (void)v_subscanner;
     alg_root(&v_subscanner, 1);
     alg_hold_top = rh_418;
@@ -1363,13 +1380,13 @@ static Value m_parser_usesstatement_0(Value v_this, Value *args, int32_t count) 
     (void)v_result;
     alg_root(&v_result, 1);
     alg_hold_top = rh_418;
-    Value v_themodule = alg_hold(alg_new(k_modulestmt, (Value[]){v_where, v_result, alg_hold(alg_property(v_subparser, "PrivateNames"))}, 3));
+    Value v_themodule = alg_hold((q_3 = alg_hold(v_where), q_4 = alg_hold(v_result), alg_new(k_modulestmt, (Value[]){q_3, q_4, alg_hold(alg_property(v_subparser, "PrivateNames"))}, 3)));
     (void)v_themodule;
     alg_root(&v_themodule, 1);
     alg_hold_top = rh_418;
     (void)(alg_hold(alg_set_property(v_themodule, "FileName", v_path)));
     alg_hold_top = rh_418;
-    (void)(alg_hold(alg_set_property(v_themodule, "UnitName", alg_hold(alg_invoke(v_this, "UnitStem", (Value[]){v_path}, 1)))));
+    (void)(alg_hold((q_5 = alg_hold(v_themodule), alg_set_property(q_5, "UnitName", alg_hold(alg_invoke(v_this, "UnitStem", (Value[]){v_path}, 1))))));
     alg_hold_top = rh_418;
     Value ret_77 = v_themodule;
     alg_root_top = rt_base;
@@ -1443,11 +1460,12 @@ static Value m_parser_constdeclaration_0(Value v_this, Value *args, int32_t coun
 
 static Value m_parser_matchvisibility_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
     int32_t rh_423 = alg_hold_top;
-    if (alg_truthy(alg_hold((or_20 = alg_hold(alg_invoke(v_this, "Check", (Value[]){e_tokentype_tokenVprivate}, 1)), !alg_truthy(or_20) ? or_20 : alg_hold(alg_equal(alg_hold(alg_property(alg_hold(alg_invoke(v_this, "PeekNext", NULL, 0)), "TypeOfToken")), e_tokentype_tokenVcolon)))))) {
+    if (alg_truthy(alg_hold((or_20 = alg_hold(alg_invoke(v_this, "Check", (Value[]){e_tokentype_tokenVprivate}, 1)), !alg_truthy(or_20) ? or_20 : alg_hold((q_0 = alg_hold(alg_property(alg_hold(alg_invoke(v_this, "PeekNext", NULL, 0)), "TypeOfToken")), alg_equal(q_0, e_tokentype_tokenVcolon))))))) {
         {
             int32_t rh_424 = alg_hold_top;
             (void)(alg_hold(alg_invoke(v_this, "Advance", NULL, 0)));
@@ -1463,7 +1481,7 @@ static Value m_parser_matchvisibility_0(Value v_this, Value *args, int32_t count
         }
     }
     alg_hold_top = rh_423;
-    if (alg_truthy(alg_hold((or_21 = alg_hold(alg_invoke(v_this, "Check", (Value[]){e_tokentype_tokenVpublic}, 1)), !alg_truthy(or_21) ? or_21 : alg_hold(alg_equal(alg_hold(alg_property(alg_hold(alg_invoke(v_this, "PeekNext", NULL, 0)), "TypeOfToken")), e_tokentype_tokenVcolon)))))) {
+    if (alg_truthy(alg_hold((or_21 = alg_hold(alg_invoke(v_this, "Check", (Value[]){e_tokentype_tokenVpublic}, 1)), !alg_truthy(or_21) ? or_21 : alg_hold((q_1 = alg_hold(alg_property(alg_hold(alg_invoke(v_this, "PeekNext", NULL, 0)), "TypeOfToken")), alg_equal(q_1, e_tokentype_tokenVcolon))))))) {
         {
             int32_t rh_425 = alg_hold_top;
             (void)(alg_hold(alg_invoke(v_this, "Advance", NULL, 0)));
@@ -1526,6 +1544,7 @@ static Value m_parser_isnextsection_0(Value v_this, Value *args, int32_t count) 
 
 static Value m_parser_declarationsection_1_boolean(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3, q_4, q_5, q_6;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -1574,13 +1593,13 @@ static Value m_parser_declarationsection_1_boolean(Value v_this, Value *args, in
                 (void)v_names;
                 alg_root(&v_names, 1);
                 alg_hold_top = rh_431;
-                (void)(alg_hold(alg_invoke(v_names, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expect "), v_noun)), alg_literal(" name.")))}, 2))}, 1)));
+                (void)(alg_hold((q_1 = alg_hold(v_names), alg_invoke(q_1, "Add", (Value[]){alg_hold((q_0 = alg_hold(e_tokentype_tokenVidentifier), alg_invoke(v_this, "Consume", (Value[]){q_0, alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expect "), v_noun)), alg_literal(" name.")))}, 2)))}, 1))));
                 alg_hold_top = rh_431;
                 {
                     int32_t rh_434 = alg_hold_top;
                     while ((alg_hold_top = rh_434, alg_truthy(alg_hold(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVcomma}, 1))))) {
                         alg_safe_point();
-                        (void)(alg_hold(alg_invoke(v_names, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expect "), v_noun)), alg_literal(" name.")))}, 2))}, 1)));
+                        (void)(alg_hold((q_3 = alg_hold(v_names), alg_invoke(q_3, "Add", (Value[]){alg_hold((q_2 = alg_hold(e_tokentype_tokenVidentifier), alg_invoke(v_this, "Consume", (Value[]){q_2, alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expect "), v_noun)), alg_literal(" name.")))}, 2)))}, 1))));
                     }
                 }
                 alg_hold_top = rh_431;
@@ -1596,7 +1615,7 @@ static Value m_parser_declarationsection_1_boolean(Value v_this, Value *args, in
                             Value v_thename = alg_iterable_at(loop_90, at_90);
                             (void)v_thename;
                             alg_root(&v_thename, 1);
-                            (void)(alg_hold(alg_invoke(alg_property(v_this, "ClassPrivates"), "Add", (Value[]){alg_hold(alg_str(alg_hold(alg_property(v_thename, "Lexeme"))))}, 1)));
+                            (void)(alg_hold((q_4 = alg_hold(alg_property(v_this, "ClassPrivates")), alg_invoke(q_4, "Add", (Value[]){alg_hold(alg_str(alg_hold(alg_property(v_thename, "Lexeme"))))}, 1))));
                             alg_root_top = rt_436;
                         }
                         alg_root_top = rt_435;
@@ -1635,13 +1654,13 @@ static Value m_parser_declarationsection_1_boolean(Value v_this, Value *args, in
                     }
                 }
                 alg_hold_top = rh_431;
-                (void)(alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVsemicolon, alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expect ';' after "), v_noun)), alg_literal(" declaration.")))}, 2)));
+                (void)(alg_hold((q_5 = alg_hold(e_tokentype_tokenVsemicolon), alg_invoke(v_this, "Consume", (Value[]){q_5, alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expect ';' after "), v_noun)), alg_literal(" declaration.")))}, 2))));
                 alg_hold_top = rh_431;
                 if (alg_truthy(alg_hold(alg_equal(alg_hold(alg_property(v_names, "Length")), alg_int(1))))) {
                     {
                         int32_t rt_438 = alg_root_top;
                         int32_t rh_439 = alg_hold_top;
-                        Value v_thevar = alg_hold(alg_new(k_varstmt, (Value[]){alg_hold(alg_subscript_get(v_names, alg_int(0))), v_initializer}, 2));
+                        Value v_thevar = alg_hold((q_6 = alg_hold(alg_subscript_get(v_names, alg_int(0))), alg_new(k_varstmt, (Value[]){q_6, v_initializer}, 2)));
                         (void)v_thevar;
                         alg_root(&v_thevar, 1);
                         alg_hold_top = rh_439;
@@ -1707,6 +1726,7 @@ static Value m_parser_readdeclarationsections_1_list(Value v_this, Value *args, 
 
 static Value m_parser_readdeclarationsections_2_list_boolean(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -1803,7 +1823,7 @@ static Value m_parser_readdeclarationsections_2_list_boolean(Value v_this, Value
                                 int32_t rh_457 = alg_hold_top;
                                 while ((alg_hold_top = rh_457, alg_truthy(alg_hold(alg_not(alg_hold(alg_invoke(v_this, "IsNextSection", NULL, 0))))))) {
                                     alg_safe_point();
-                                    (void)(alg_hold(alg_invoke(v_body, "Add", (Value[]){alg_hold(alg_invoke(v_this, "EnumDeclaration", NULL, 0))}, 1)));
+                                    (void)(alg_hold((q_0 = alg_hold(v_body), alg_invoke(q_0, "Add", (Value[]){alg_hold(alg_invoke(v_this, "EnumDeclaration", NULL, 0))}, 1))));
                                 }
                             }
                             alg_hold_top = rh_456;
@@ -1822,6 +1842,7 @@ static Value m_parser_readdeclarationsections_2_list_boolean(Value v_this, Value
 
 static Value m_parser_forinstatement_1_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -1851,7 +1872,7 @@ static Value m_parser_forinstatement_1_token(Value v_this, Value *args, int32_t 
     alg_hold_top = rh_458;
     (void)(alg_set_property(v_this, "LoopDepth", alg_hold(alg_subtract(alg_property(v_this, "LoopDepth"), alg_int(1)))));
     alg_hold_top = rh_458;
-    (void)(alg_hold(alg_invoke(alg_property(v_this, "LoopLabels"), "RemoveAt", (Value[]){alg_hold(alg_subtract(alg_hold(alg_property(alg_property(v_this, "LoopLabels"), "Length")), alg_int(1)))}, 1)));
+    (void)(alg_hold((q_0 = alg_hold(alg_property(v_this, "LoopLabels")), alg_invoke(q_0, "RemoveAt", (Value[]){alg_hold(alg_subtract(alg_hold(alg_property(alg_property(v_this, "LoopLabels"), "Length")), alg_int(1)))}, 1))));
     alg_hold_top = rh_458;
     Value v_loop = alg_hold(alg_new(k_forinstmt, (Value[]){v_name, v_iterable, v_body}, 3));
     (void)v_loop;
@@ -1963,6 +1984,7 @@ static Value m_parser_takelabel_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_parser_enclosingloop_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -1981,7 +2003,7 @@ static Value m_parser_enclosingloop_1_string(Value v_this, Value *args, int32_t 
             Value v_looplabel = alg_iterable_at(loop_105, at_105);
             (void)v_looplabel;
             alg_root(&v_looplabel, 1);
-            if (alg_truthy(alg_hold(alg_equal(alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_str(v_looplabel))}, 1)), alg_hold(f_foldcase(NULL, (Value[]){v_thelabel}, 1)))))) {
+            if (alg_truthy(alg_hold((q_0 = alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_str(v_looplabel))}, 1)), alg_equal(q_0, alg_hold(f_foldcase(NULL, (Value[]){v_thelabel}, 1))))))) {
                 Value ret_106 = alg_bool(true);
                 alg_root_top = rt_base;
                 return ret_106;
@@ -2002,6 +2024,7 @@ static Value m_parser_enclosingloop_1_string(Value v_this, Value *args, int32_t 
 
 static Value m_parser_jumplabel_2_token_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -2025,7 +2048,7 @@ static Value m_parser_jumplabel_2_token_string(Value v_this, Value *args, int32_
     (void)((v_named = alg_hold(alg_str(alg_hold(alg_property(alg_hold(alg_invoke(v_this, "Advance", NULL, 0)), "Lexeme"))))));
     alg_hold_top = rh_465;
     if (alg_truthy(alg_hold(alg_not(alg_hold(alg_invoke(v_this, "EnclosingLoop", (Value[]){v_named}, 1)))))) {
-        alg_raise(alg_hold(alg_invoke(v_this, "Error", (Value[]){v_keyword, alg_hold(alg_add(alg_hold(alg_add(alg_literal("No enclosing loop is labelled '"), v_named)), alg_literal("'.")))}, 2)));
+        alg_raise(alg_hold((q_0 = alg_hold(v_keyword), alg_invoke(v_this, "Error", (Value[]){q_0, alg_hold(alg_add(alg_hold(alg_add(alg_literal("No enclosing loop is labelled '"), v_named)), alg_literal("'.")))}, 2))));
     }
     alg_hold_top = rh_465;
     Value ret_110 = v_named;
@@ -2101,6 +2124,7 @@ static Value m_parser_operatortoken_0(Value v_this, Value *args, int32_t count) 
 
 static Value m_parser_parseoperator_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -2134,9 +2158,9 @@ static Value m_parser_parseoperator_0(Value v_this, Value *args, int32_t count) 
     if (alg_truthy(alg_hold(alg_not(alg_hold(alg_invoke(v_this, "Check", (Value[]){e_tokentype_tokenVrightVparen}, 1)))))) {
         {
             int32_t rh_469 = alg_hold_top;
-            (void)(alg_hold(alg_invoke(v_params, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_literal("Expect parameter name.")}, 2))}, 1)));
+            (void)(alg_hold((q_0 = alg_hold(v_params), alg_invoke(q_0, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_literal("Expect parameter name.")}, 2))}, 1))));
             alg_hold_top = rh_469;
-            (void)(alg_hold(alg_invoke(v_paramtypes, "Add", (Value[]){alg_hold(alg_invoke(v_this, "ParameterType", NULL, 0))}, 1)));
+            (void)(alg_hold((q_1 = alg_hold(v_paramtypes), alg_invoke(q_1, "Add", (Value[]){alg_hold(alg_invoke(v_this, "ParameterType", NULL, 0))}, 1))));
             alg_hold_top = rh_469;
             (void)(alg_hold(alg_invoke(v_paramgenerics, "Add", (Value[]){alg_property(v_this, "LastGeneric")}, 1)));
             alg_hold_top = rh_469;
@@ -2233,6 +2257,7 @@ static Value m_parser_parseoperator_0(Value v_this, Value *args, int32_t count) 
 
 static Value m_parser_parseproperty_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -2308,7 +2333,7 @@ static Value m_parser_parseproperty_0(Value v_this, Value *args, int32_t count) 
         alg_root_top = rt_475;
     }
     alg_hold_top = rh_473;
-    Value v_theproperty = alg_hold(alg_new(k_functionstmt, (Value[]){v_name, alg_hold(alg_list()), v_body}, 3));
+    Value v_theproperty = alg_hold((q_0 = alg_hold(v_name), q_1 = alg_hold(alg_list()), alg_new(k_functionstmt, (Value[]){q_0, q_1, v_body}, 3)));
     (void)v_theproperty;
     alg_root(&v_theproperty, 1);
     alg_hold_top = rh_473;
@@ -2385,6 +2410,7 @@ static Value m_parser_raisestatement_0(Value v_this, Value *args, int32_t count)
 
 static Value m_parser_trystatement_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3, q_4, q_5, q_6, q_7;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -2427,7 +2453,7 @@ static Value m_parser_trystatement_0(Value v_this, Value *args, int32_t count) {
         int32_t rh_480 = alg_hold_top;
         while ((alg_hold_top = rh_480, alg_truthy(alg_hold((or_44 = alg_hold(alg_not(alg_hold(alg_invoke(v_this, "Check", (Value[]){e_tokentype_tokenVexcept}, 1)))), !alg_truthy(or_44) ? or_44 : alg_hold(alg_not(alg_hold(alg_invoke(v_this, "IsAtEnd", NULL, 0))))))))) {
             alg_safe_point();
-            (void)(alg_hold(alg_invoke(v_statements, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Statement", NULL, 0))}, 1)));
+            (void)(alg_hold((q_0 = alg_hold(v_statements), alg_invoke(q_0, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Statement", NULL, 0))}, 1))));
         }
     }
     alg_hold_top = rh_479;
@@ -2470,12 +2496,12 @@ static Value m_parser_trystatement_0(Value v_this, Value *args, int32_t count) {
                             alg_raise(alg_hold(alg_invoke(v_this, "Error", (Value[]){v_variable, alg_literal("A handler for any exception is already given.")}, 2)));
                         }
                         alg_hold_top = rh_483;
-                        alg_raise(alg_hold(alg_invoke(v_this, "Error", (Value[]){v_thetype, alg_hold(alg_add(alg_hold(alg_add(alg_literal("Duplicate handler for '"), v_key)), alg_literal("'.")))}, 2)));
+                        alg_raise(alg_hold((q_1 = alg_hold(v_thetype), alg_invoke(v_this, "Error", (Value[]){q_1, alg_hold(alg_add(alg_hold(alg_add(alg_literal("Duplicate handler for '"), v_key)), alg_literal("'.")))}, 2))));
                         alg_hold_top = rh_483;
                     }
                 }
                 alg_hold_top = rh_482;
-                (void)(alg_hold(alg_invoke(v_handlers, "Put", (Value[]){v_key, alg_hold(alg_new(k_excepthandler, (Value[]){alg_hold(alg_str(alg_hold(alg_property(v_variable, "Lexeme")))), alg_hold(alg_invoke(v_this, "Statement", NULL, 0))}, 2))}, 2)));
+                (void)(alg_hold((q_3 = alg_hold(v_handlers), q_4 = alg_hold(v_key), alg_invoke(q_3, "Put", (Value[]){q_4, alg_hold((q_2 = alg_hold(alg_str(alg_hold(alg_property(v_variable, "Lexeme")))), alg_new(k_excepthandler, (Value[]){q_2, alg_hold(alg_invoke(v_this, "Statement", NULL, 0))}, 2)))}, 2))));
                 alg_hold_top = rh_482;
             }
         }
@@ -2489,7 +2515,7 @@ static Value m_parser_trystatement_0(Value v_this, Value *args, int32_t count) {
         int32_t rh_484 = alg_hold_top;
         while ((alg_hold_top = rh_484, alg_truthy(alg_hold((or_45 = alg_hold(alg_not(alg_hold(alg_invoke(v_this, "Check", (Value[]){e_tokentype_tokenVend}, 1)))), !alg_truthy(or_45) ? or_45 : alg_hold(alg_not(alg_hold(alg_invoke(v_this, "IsAtEnd", NULL, 0))))))))) {
             alg_safe_point();
-            (void)(alg_hold(alg_invoke(v_exceptstmts, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Statement", NULL, 0))}, 1)));
+            (void)(alg_hold((q_5 = alg_hold(v_exceptstmts), alg_invoke(q_5, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Statement", NULL, 0))}, 1))));
         }
     }
     alg_hold_top = rh_479;
@@ -2500,14 +2526,14 @@ static Value m_parser_trystatement_0(Value v_this, Value *args, int32_t count) {
                 alg_raise(alg_hold(alg_invoke(v_this, "Error", (Value[]){v_trailing, alg_literal("A handler for any exception is already given by an untyped 'on'.")}, 2)));
             }
             alg_hold_top = rh_485;
-            (void)(alg_hold(alg_invoke(v_handlers, "Put", (Value[]){alg_literal("default"), alg_hold(alg_new(k_excepthandler, (Value[]){alg_literal("Any"), alg_hold(alg_new(k_blockstmt, (Value[]){v_exceptstmts}, 1))}, 2))}, 2)));
+            (void)(alg_hold((q_6 = alg_hold(v_handlers), alg_invoke(q_6, "Put", (Value[]){alg_literal("default"), alg_hold(alg_new(k_excepthandler, (Value[]){alg_literal("Any"), alg_hold(alg_new(k_blockstmt, (Value[]){v_exceptstmts}, 1))}, 2))}, 2))));
             alg_hold_top = rh_485;
         }
     }
     alg_hold_top = rh_479;
     (void)(alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVend, alg_literal("Expect 'end' after except block.")}, 2)));
     alg_hold_top = rh_479;
-    Value ret_127 = alg_hold(alg_new(k_trystmt, (Value[]){alg_hold(alg_new(k_blockstmt, (Value[]){v_statements}, 1)), v_handlers}, 2));
+    Value ret_127 = alg_hold((q_7 = alg_hold(alg_new(k_blockstmt, (Value[]){v_statements}, 1)), alg_new(k_trystmt, (Value[]){q_7, v_handlers}, 2)));
     alg_root_top = rt_base;
     return ret_127;
     alg_hold_top = rh_479;
@@ -2616,6 +2642,7 @@ static Value m_parser_expressionstatement_0(Value v_this, Value *args, int32_t c
 
 static Value m_parser_isextensiondeclaration_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -2626,7 +2653,7 @@ static Value m_parser_isextensiondeclaration_0(Value v_this, Value *args, int32_
         return ret_135;
     }
     alg_hold_top = rh_491;
-    Value ret_136 = alg_hold((or_49 = alg_hold(alg_equal(alg_hold(alg_property(alg_hold(alg_invoke(v_this, "PeekNext", NULL, 0)), "TypeOfToken")), e_tokentype_tokenVfunction)), alg_truthy(or_49) ? or_49 : alg_hold(alg_equal(alg_hold(alg_property(alg_hold(alg_invoke(v_this, "PeekNext", NULL, 0)), "TypeOfToken")), e_tokentype_tokenVprocedure))));
+    Value ret_136 = alg_hold((or_49 = alg_hold((q_0 = alg_hold(alg_property(alg_hold(alg_invoke(v_this, "PeekNext", NULL, 0)), "TypeOfToken")), alg_equal(q_0, e_tokentype_tokenVfunction))), alg_truthy(or_49) ? or_49 : alg_hold((q_1 = alg_hold(alg_property(alg_hold(alg_invoke(v_this, "PeekNext", NULL, 0)), "TypeOfToken")), alg_equal(q_1, e_tokentype_tokenVprocedure)))));
     alg_root_top = rt_base;
     return ret_136;
     alg_hold_top = rh_491;
@@ -2670,6 +2697,7 @@ static Value m_parser_extensiondeclaration_0(Value v_this, Value *args, int32_t 
 
 static Value m_parser_parsefunction_2_string_boolean(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3, q_4, q_5, q_6, q_7, q_8, q_9, q_10;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -2692,9 +2720,9 @@ static Value m_parser_parsefunction_2_string_boolean(Value v_this, Value *args, 
     (void)v_body;
     alg_root(&v_body, 1);
     alg_hold_top = rh_493;
-    (void)((v_name = alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expect "), v_kind)), alg_literal(" name.")))}, 2))));
+    (void)((v_name = alg_hold((q_0 = alg_hold(e_tokentype_tokenVidentifier), alg_invoke(v_this, "Consume", (Value[]){q_0, alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expect "), v_kind)), alg_literal(" name.")))}, 2)))));
     alg_hold_top = rh_493;
-    (void)(alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVleftVparen, alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expect '(' after "), v_kind)), alg_literal(" name.")))}, 2)));
+    (void)(alg_hold((q_1 = alg_hold(e_tokentype_tokenVleftVparen), alg_invoke(v_this, "Consume", (Value[]){q_1, alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expect '(' after "), v_kind)), alg_literal(" name.")))}, 2))));
     alg_hold_top = rh_493;
     (void)((v_params = alg_hold(alg_list())));
     alg_hold_top = rh_493;
@@ -2709,9 +2737,9 @@ static Value m_parser_parsefunction_2_string_boolean(Value v_this, Value *args, 
     if (alg_truthy(alg_hold(alg_not(alg_hold(alg_invoke(v_this, "Check", (Value[]){e_tokentype_tokenVrightVparen}, 1)))))) {
         {
             int32_t rh_494 = alg_hold_top;
-            (void)(alg_hold(alg_invoke(v_params, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_literal("Expect parameter name.")}, 2))}, 1)));
+            (void)(alg_hold((q_2 = alg_hold(v_params), alg_invoke(q_2, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_literal("Expect parameter name.")}, 2))}, 1))));
             alg_hold_top = rh_494;
-            (void)(alg_hold(alg_invoke(v_paramtypes, "Add", (Value[]){alg_hold(alg_invoke(v_this, "ParameterType", NULL, 0))}, 1)));
+            (void)(alg_hold((q_3 = alg_hold(v_paramtypes), alg_invoke(q_3, "Add", (Value[]){alg_hold(alg_invoke(v_this, "ParameterType", NULL, 0))}, 1))));
             alg_hold_top = rh_494;
             (void)(alg_hold(alg_invoke(v_paramgenerics, "Add", (Value[]){alg_property(v_this, "LastGeneric")}, 1)));
             alg_hold_top = rh_494;
@@ -2729,9 +2757,9 @@ static Value m_parser_parsefunction_2_string_boolean(Value v_this, Value *args, 
                             }
                         }
                         alg_hold_top = rh_496;
-                        (void)(alg_hold(alg_invoke(v_params, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_literal("Expect parameter name.")}, 2))}, 1)));
+                        (void)(alg_hold((q_4 = alg_hold(v_params), alg_invoke(q_4, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_literal("Expect parameter name.")}, 2))}, 1))));
                         alg_hold_top = rh_496;
-                        (void)(alg_hold(alg_invoke(v_paramtypes, "Add", (Value[]){alg_hold(alg_invoke(v_this, "ParameterType", NULL, 0))}, 1)));
+                        (void)(alg_hold((q_5 = alg_hold(v_paramtypes), alg_invoke(q_5, "Add", (Value[]){alg_hold(alg_invoke(v_this, "ParameterType", NULL, 0))}, 1))));
                         alg_hold_top = rh_496;
                         (void)(alg_hold(alg_invoke(v_paramgenerics, "Add", (Value[]){alg_property(v_this, "LastGeneric")}, 1)));
                         alg_hold_top = rh_496;
@@ -2774,7 +2802,7 @@ static Value m_parser_parsefunction_2_string_boolean(Value v_this, Value *args, 
         (void)((v_returngeneric = alg_hold(alg_str(alg_hold(alg_property(alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_literal("Expect generic type.")}, 2)), "Lexeme"))))));
     }
     alg_hold_top = rh_493;
-    (void)(alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVsemicolon, alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expect ';' after "), v_kind)), alg_literal(" signature.")))}, 2)));
+    (void)(alg_hold((q_6 = alg_hold(e_tokentype_tokenVsemicolon), alg_invoke(v_this, "Consume", (Value[]){q_6, alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expect ';' after "), v_kind)), alg_literal(" signature.")))}, 2))));
     alg_hold_top = rh_493;
     if (alg_truthy(alg_hold(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVexternal}, 1)))) {
         {
@@ -2794,7 +2822,7 @@ static Value m_parser_parsefunction_2_string_boolean(Value v_this, Value *args, 
             alg_hold_top = rh_500;
             (void)(alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVsemicolon, alg_literal("Expect ';' after an external declaration.")}, 2)));
             alg_hold_top = rh_500;
-            Value v_foreign = alg_hold(alg_new(k_functionstmt, (Value[]){v_name, v_params, alg_hold(alg_list())}, 3));
+            Value v_foreign = alg_hold((q_7 = alg_hold(v_name), q_8 = alg_hold(v_params), alg_new(k_functionstmt, (Value[]){q_7, q_8, alg_hold(alg_list())}, 3)));
             (void)v_foreign;
             alg_root(&v_foreign, 1);
             alg_hold_top = rh_500;
@@ -2806,7 +2834,7 @@ static Value m_parser_parsefunction_2_string_boolean(Value v_this, Value *args, 
             alg_hold_top = rh_500;
             (void)(alg_hold(alg_set_property(v_foreign, "ParamGenerics", v_paramgenerics)));
             alg_hold_top = rh_500;
-            (void)(alg_hold(alg_set_property(v_foreign, "Symbol", alg_hold(alg_str(alg_hold(alg_property(v_symbol, "Literal")))))));
+            (void)(alg_hold((q_9 = alg_hold(v_foreign), alg_set_property(q_9, "Symbol", alg_hold(alg_str(alg_hold(alg_property(v_symbol, "Literal"))))))));
             alg_hold_top = rh_500;
             (void)(alg_hold(alg_set_property(v_foreign, "Library", v_inlibrary)));
             alg_hold_top = rh_500;
@@ -2824,7 +2852,7 @@ static Value m_parser_parsefunction_2_string_boolean(Value v_this, Value *args, 
     alg_hold_top = rh_493;
     (void)(alg_hold(alg_invoke(v_this, "ReadDeclarationSections", (Value[]){v_body}, 1)));
     alg_hold_top = rh_493;
-    (void)(alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVbegin, alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expect 'begin' before "), v_kind)), alg_literal(" body.")))}, 2)));
+    (void)(alg_hold((q_10 = alg_hold(e_tokentype_tokenVbegin), alg_invoke(v_this, "Consume", (Value[]){q_10, alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expect 'begin' before "), v_kind)), alg_literal(" body.")))}, 2))));
     alg_hold_top = rh_493;
     Value v_wasinprocedure = alg_property(v_this, "InProcedure");
     (void)v_wasinprocedure;
@@ -2915,6 +2943,7 @@ static Value m_parser_parametertype_0(Value v_this, Value *args, int32_t count) 
 
 static Value m_parser_block_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -2931,7 +2960,7 @@ static Value m_parser_block_0(Value v_this, Value *args, int32_t count) {
             alg_safe_point();
             {
                 int32_t rh_506 = alg_hold_top;
-                (void)(alg_hold(alg_invoke(v_statements, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Declaration", NULL, 0))}, 1)));
+                (void)(alg_hold((q_0 = alg_hold(v_statements), alg_invoke(q_0, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Declaration", NULL, 0))}, 1))));
                 alg_hold_top = rh_506;
             }
         }
@@ -2950,6 +2979,7 @@ static Value m_parser_block_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_parser_assignment_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3, q_4, q_5;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -2976,17 +3006,17 @@ static Value m_parser_assignment_0(Value v_this, Value *args, int32_t count) {
             (void)((v_value = alg_hold(alg_invoke(v_this, "Assignment", NULL, 0))));
             alg_hold_top = rh_508;
             if (alg_truthy(alg_hold(alg_equal(alg_hold(alg_property(v_theexpr, "ClassName")), alg_literal("VariableExpr"))))) {
-                Value ret_150 = alg_hold(alg_new(k_assignexpr, (Value[]){alg_hold(alg_property(v_theexpr, "Name")), v_value}, 2));
+                Value ret_150 = alg_hold((q_0 = alg_hold(alg_property(v_theexpr, "Name")), alg_new(k_assignexpr, (Value[]){q_0, v_value}, 2)));
                 alg_root_top = rt_base;
                 return ret_150;
             } else {
                 if (alg_truthy(alg_hold(alg_equal(alg_hold(alg_property(v_theexpr, "ClassName")), alg_literal("GetExpr"))))) {
-                    Value ret_151 = alg_hold(alg_new(k_setexpr, (Value[]){alg_hold(alg_property(v_theexpr, "Obj")), alg_hold(alg_property(v_theexpr, "Name")), v_value}, 3));
+                    Value ret_151 = alg_hold((q_1 = alg_hold(alg_property(v_theexpr, "Obj")), q_2 = alg_hold(alg_property(v_theexpr, "Name")), alg_new(k_setexpr, (Value[]){q_1, q_2, v_value}, 3)));
                     alg_root_top = rt_base;
                     return ret_151;
                 } else {
                     if (alg_truthy(alg_hold(alg_equal(alg_hold(alg_property(v_theexpr, "ClassName")), alg_literal("SubscriptExpr"))))) {
-                        Value ret_152 = alg_hold(alg_new(k_setsubscriptexpr, (Value[]){alg_hold(alg_property(v_theexpr, "Obj")), alg_hold(alg_property(v_theexpr, "Index")), v_value, alg_hold(alg_property(v_theexpr, "Bracket"))}, 4));
+                        Value ret_152 = alg_hold((q_3 = alg_hold(alg_property(v_theexpr, "Obj")), q_4 = alg_hold(alg_property(v_theexpr, "Index")), q_5 = alg_hold(v_value), alg_new(k_setsubscriptexpr, (Value[]){q_3, q_4, q_5, alg_hold(alg_property(v_theexpr, "Bracket"))}, 4)));
                         alg_root_top = rt_base;
                         return ret_152;
                     }
@@ -3141,6 +3171,7 @@ static Value m_parser_declaration_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_parser_istestblock_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -3157,7 +3188,7 @@ static Value m_parser_istestblock_0(Value v_this, Value *args, int32_t count) {
         return ret_165;
     }
     alg_hold_top = rh_517;
-    Value ret_166 = alg_hold((or_53 = alg_hold(alg_equal(alg_hold(alg_property(alg_hold(alg_invoke(v_this, "PeekNext", NULL, 0)), "TypeOfToken")), e_tokentype_tokenVstring)), alg_truthy(or_53) ? or_53 : alg_hold(alg_equal(alg_hold(alg_property(alg_hold(alg_invoke(v_this, "PeekNext", NULL, 0)), "TypeOfToken")), e_tokentype_tokenVchar))));
+    Value ret_166 = alg_hold((or_53 = alg_hold((q_0 = alg_hold(alg_property(alg_hold(alg_invoke(v_this, "PeekNext", NULL, 0)), "TypeOfToken")), alg_equal(q_0, e_tokentype_tokenVstring))), alg_truthy(or_53) ? or_53 : alg_hold((q_1 = alg_hold(alg_property(alg_hold(alg_invoke(v_this, "PeekNext", NULL, 0)), "TypeOfToken")), alg_equal(q_1, e_tokentype_tokenVchar)))));
     alg_root_top = rt_base;
     return ret_166;
     alg_hold_top = rh_517;
@@ -3168,6 +3199,7 @@ static Value m_parser_istestblock_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_parser_testdeclaration_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -3194,7 +3226,7 @@ static Value m_parser_testdeclaration_0(Value v_this, Value *args, int32_t count
     alg_hold_top = rh_518;
     (void)((v_body = alg_hold(alg_invoke(v_this, "Block", NULL, 0))));
     alg_hold_top = rh_518;
-    Value ret_168 = alg_hold(alg_new(k_functionstmt, (Value[]){v_name, alg_hold(alg_list()), v_body}, 3));
+    Value ret_168 = alg_hold((q_0 = alg_hold(v_name), q_1 = alg_hold(alg_list()), alg_new(k_functionstmt, (Value[]){q_0, q_1, v_body}, 3)));
     alg_root_top = rt_base;
     return ret_168;
     alg_hold_top = rh_518;
@@ -3205,6 +3237,7 @@ static Value m_parser_testdeclaration_0(Value v_this, Value *args, int32_t count
 
 static Value m_parser_enumdeclaration_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -3231,13 +3264,13 @@ static Value m_parser_enumdeclaration_0(Value v_this, Value *args, int32_t count
     alg_hold_top = rh_519;
     (void)((v_members = alg_hold(alg_list())));
     alg_hold_top = rh_519;
-    (void)(alg_hold(alg_invoke(v_members, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_literal("Expect member name.")}, 2))}, 1)));
+    (void)(alg_hold((q_0 = alg_hold(v_members), alg_invoke(q_0, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_literal("Expect member name.")}, 2))}, 1))));
     alg_hold_top = rh_519;
     {
         int32_t rh_520 = alg_hold_top;
         while ((alg_hold_top = rh_520, alg_truthy(alg_hold(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVcomma}, 1))))) {
             alg_safe_point();
-            (void)(alg_hold(alg_invoke(v_members, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_literal("Expect member name.")}, 2))}, 1)));
+            (void)(alg_hold((q_1 = alg_hold(v_members), alg_invoke(q_1, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_literal("Expect member name.")}, 2))}, 1))));
         }
     }
     alg_hold_top = rh_519;
@@ -3256,6 +3289,7 @@ static Value m_parser_enumdeclaration_0(Value v_this, Value *args, int32_t count
 
 static Value m_parser_subrangedeclaration_1_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -3280,7 +3314,7 @@ static Value m_parser_subrangedeclaration_1_token(Value v_this, Value *args, int
     (void)(alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVsemicolon, alg_literal("Expect ';' after subrange declaration.")}, 2)));
     alg_hold_top = rh_521;
     if (alg_truthy(alg_hold(alg_greater(v_low, v_high)))) {
-        (void)(alg_hold(alg_invoke(v_this, "Error", (Value[]){v_name, alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_hold(alg_add(alg_literal("A subrange must not be empty: "), alg_hold(alg_str(v_low)))), alg_literal(" is above "))), alg_hold(alg_str(v_high)))), alg_char_value(46)))}, 2)));
+        (void)(alg_hold((q_1 = alg_hold(v_name), alg_invoke(v_this, "Error", (Value[]){q_1, alg_hold(alg_add(alg_hold((q_0 = alg_hold(alg_add(alg_hold(alg_add(alg_literal("A subrange must not be empty: "), alg_hold(alg_str(v_low)))), alg_literal(" is above "))), alg_add(q_0, alg_hold(alg_str(v_high))))), alg_char_value(46)))}, 2))));
     }
     alg_hold_top = rh_521;
     Value ret_173 = alg_hold(alg_new(k_subrangestmt, (Value[]){v_name, v_low, v_high}, 3));
@@ -3340,6 +3374,7 @@ static Value m_parser_classdeclaration_0(Value v_this, Value *args, int32_t coun
 
 static Value m_parser_classdeclaration_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3, q_4, q_5, q_6, q_7;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -3363,7 +3398,7 @@ static Value m_parser_classdeclaration_1_string(Value v_this, Value *args, int32
     (void)v_superclass;
     alg_root(&v_superclass, 1);
     alg_hold_top = rh_524;
-    (void)((v_name = alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expect "), v_kind)), alg_literal(" name.")))}, 2))));
+    (void)((v_name = alg_hold((q_0 = alg_hold(e_tokentype_tokenVidentifier), alg_invoke(v_this, "Consume", (Value[]){q_0, alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expect "), v_kind)), alg_literal(" name.")))}, 2)))));
     alg_hold_top = rh_524;
     (void)((v_superclass = alg_cast_class(alg_nil(), k_variableexpr, "VariableExpr")));
     alg_hold_top = rh_524;
@@ -3379,7 +3414,7 @@ static Value m_parser_classdeclaration_1_string(Value v_this, Value *args, int32
         }
     }
     alg_hold_top = rh_524;
-    (void)(alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVsemicolon, alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expect ';' after "), v_kind)), alg_literal(" declaration.")))}, 2)));
+    (void)(alg_hold((q_1 = alg_hold(e_tokentype_tokenVsemicolon), alg_invoke(v_this, "Consume", (Value[]){q_1, alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expect ';' after "), v_kind)), alg_literal(" declaration.")))}, 2))));
     alg_hold_top = rh_524;
     (void)(alg_set_property(v_this, "ClassPrivates", alg_hold(alg_list())));
     alg_hold_top = rh_524;
@@ -3423,13 +3458,13 @@ static Value m_parser_classdeclaration_1_string(Value v_this, Value *args, int32
                                 {
                                     int32_t rt_532 = alg_root_top;
                                     int32_t rh_533 = alg_hold_top;
-                                    Value v_field = alg_hold(alg_new(k_varstmt, (Value[]){v_thename, alg_hold(alg_property(v_each, "Initializer"))}, 2));
+                                    Value v_field = alg_hold((q_2 = alg_hold(v_thename), alg_new(k_varstmt, (Value[]){q_2, alg_hold(alg_property(v_each, "Initializer"))}, 2)));
                                     (void)v_field;
                                     alg_root(&v_field, 1);
                                     alg_hold_top = rh_533;
-                                    (void)(alg_hold(alg_set_property(v_field, "TypeName", alg_widen(alg_hold(alg_property(v_each, "TypeName")), "String"))));
+                                    (void)(alg_hold((q_3 = alg_hold(v_field), alg_set_property(q_3, "TypeName", alg_widen(alg_hold(alg_property(v_each, "TypeName")), "String")))));
                                     alg_hold_top = rh_533;
-                                    (void)(alg_hold(alg_set_property(v_field, "Generic", alg_widen(alg_hold(alg_property(v_each, "Generic")), "String"))));
+                                    (void)(alg_hold((q_4 = alg_hold(v_field), alg_set_property(q_4, "Generic", alg_widen(alg_hold(alg_property(v_each, "Generic")), "String")))));
                                     alg_hold_top = rh_533;
                                     (void)(alg_hold(alg_invoke(v_fields, "Add", (Value[]){v_field}, 1)));
                                     alg_hold_top = rh_533;
@@ -3451,7 +3486,7 @@ static Value m_parser_classdeclaration_1_string(Value v_this, Value *args, int32
         alg_root_top = rt_526;
     }
     alg_hold_top = rh_524;
-    (void)(alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVbegin, alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expect 'begin' before "), v_kind)), alg_literal(" body.")))}, 2)));
+    (void)(alg_hold((q_5 = alg_hold(e_tokentype_tokenVbegin), alg_invoke(v_this, "Consume", (Value[]){q_5, alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expect 'begin' before "), v_kind)), alg_literal(" body.")))}, 2))));
     alg_hold_top = rh_524;
     (void)(alg_set_property(v_this, "InPrivateSection", alg_bool(false)));
     alg_hold_top = rh_524;
@@ -3511,7 +3546,7 @@ static Value m_parser_classdeclaration_1_string(Value v_this, Value *args, int32
                 }
                 alg_hold_top = rh_536;
                 if (alg_truthy(alg_property(v_this, "InPrivateSection"))) {
-                    (void)(alg_hold(alg_invoke(alg_property(v_this, "ClassPrivates"), "Add", (Value[]){alg_hold(alg_str(alg_hold(alg_property(alg_hold(alg_property(v_method, "Name")), "Lexeme"))))}, 1)));
+                    (void)(alg_hold((q_6 = alg_hold(alg_property(v_this, "ClassPrivates")), alg_invoke(q_6, "Add", (Value[]){alg_hold(alg_str(alg_hold(alg_property(alg_hold(alg_property(v_method, "Name")), "Lexeme"))))}, 1))));
                 }
                 alg_hold_top = rh_536;
                 (void)(alg_hold(alg_invoke(v_methods, "Add", (Value[]){v_method}, 1)));
@@ -3521,7 +3556,7 @@ static Value m_parser_classdeclaration_1_string(Value v_this, Value *args, int32
         }
     }
     alg_hold_top = rh_524;
-    (void)(alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVend, alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expect 'end' after "), v_kind)), alg_literal(" body.")))}, 2)));
+    (void)(alg_hold((q_7 = alg_hold(e_tokentype_tokenVend), alg_invoke(v_this, "Consume", (Value[]){q_7, alg_hold(alg_add(alg_hold(alg_add(alg_literal("Expect 'end' after "), v_kind)), alg_literal(" body.")))}, 2))));
     alg_hold_top = rh_524;
     if (alg_truthy(alg_hold(alg_equal(v_kind, alg_literal("object"))))) {
         {
@@ -3603,6 +3638,7 @@ static Value m_parser_equality_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_parser_comparison_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -3630,7 +3666,7 @@ static Value m_parser_comparison_0(Value v_this, Value *args, int32_t count) {
                 if (alg_truthy(alg_hold(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVis}, 1)))) {
                     {
                         int32_t rh_548 = alg_hold_top;
-                        (void)((v_theexpr = alg_widen(alg_hold(alg_new(k_isexpr, (Value[]){v_theexpr, alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_literal("Expect type name after 'is'.")}, 2))}, 2)), "Expr")));
+                        (void)((v_theexpr = alg_widen(alg_hold((q_0 = alg_hold(v_theexpr), alg_new(k_isexpr, (Value[]){q_0, alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_literal("Expect type name after 'is'.")}, 2))}, 2))), "Expr")));
                         alg_hold_top = rh_548;
                     }
                 } else {
@@ -3891,6 +3927,7 @@ static Value m_parser_factor_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_parser_unary_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -3924,7 +3961,7 @@ static Value m_parser_unary_0(Value v_this, Value *args, int32_t count) {
     (void)((v_theexpr = alg_hold(alg_invoke(v_this, "Call", NULL, 0))));
     alg_hold_top = rh_565;
     if (alg_truthy(alg_hold(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVas}, 1)))) {
-        (void)(alg_hold(alg_set_property(v_theexpr, "Cast", alg_hold(f_canonicaltype(NULL, (Value[]){alg_hold(alg_property(alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_literal("Expect typecast identifier.")}, 2)), "Lexeme"))}, 1)))));
+        (void)(alg_hold((q_0 = alg_hold(v_theexpr), alg_set_property(q_0, "Cast", alg_hold(f_canonicaltype(NULL, (Value[]){alg_hold(alg_property(alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_literal("Expect typecast identifier.")}, 2)), "Lexeme"))}, 1))))));
     }
     alg_hold_top = rh_565;
     Value ret_201 = v_theexpr;
@@ -3938,6 +3975,7 @@ static Value m_parser_unary_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_parser_collectionliteral_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -3991,7 +4029,7 @@ static Value m_parser_collectionliteral_0(Value v_this, Value *args, int32_t cou
             alg_hold_top = rh_569;
             (void)(alg_hold(alg_invoke(v_keys, "Add", (Value[]){v_first}, 1)));
             alg_hold_top = rh_569;
-            (void)(alg_hold(alg_invoke(v_values, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Expression", NULL, 0))}, 1)));
+            (void)(alg_hold((q_0 = alg_hold(v_values), alg_invoke(q_0, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Expression", NULL, 0))}, 1))));
             alg_hold_top = rh_569;
         }
     } else {
@@ -4007,15 +4045,15 @@ static Value m_parser_collectionliteral_0(Value v_this, Value *args, int32_t cou
                 if (alg_truthy(v_ismap)) {
                     {
                         int32_t rh_572 = alg_hold_top;
-                        (void)(alg_hold(alg_invoke(v_keys, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Expression", NULL, 0))}, 1)));
+                        (void)(alg_hold((q_1 = alg_hold(v_keys), alg_invoke(q_1, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Expression", NULL, 0))}, 1))));
                         alg_hold_top = rh_572;
                         (void)(alg_hold(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVcolon, alg_literal("Expect ':' after key.")}, 2)));
                         alg_hold_top = rh_572;
-                        (void)(alg_hold(alg_invoke(v_values, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Expression", NULL, 0))}, 1)));
+                        (void)(alg_hold((q_2 = alg_hold(v_values), alg_invoke(q_2, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Expression", NULL, 0))}, 1))));
                         alg_hold_top = rh_572;
                     }
                 } else {
-                    (void)(alg_hold(alg_invoke(v_values, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Expression", NULL, 0))}, 1)));
+                    (void)(alg_hold((q_3 = alg_hold(v_values), alg_invoke(q_3, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Expression", NULL, 0))}, 1))));
                 }
                 alg_hold_top = rh_571;
             }
@@ -4172,6 +4210,7 @@ static Value m_parser_finishcall_1_expr(Value v_this, Value *args, int32_t count
 
 static Value m_parser_argument_2_list_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -4182,7 +4221,7 @@ static Value m_parser_argument_2_list_list(Value v_this, Value *args, int32_t co
     (void)v_names;
     alg_root(&v_names, 1);
     int32_t rh_583 = alg_hold_top;
-    if (alg_truthy(alg_hold((or_69 = alg_hold(alg_invoke(v_this, "Check", (Value[]){e_tokentype_tokenVidentifier}, 1)), !alg_truthy(or_69) ? or_69 : alg_hold(alg_equal(alg_hold(alg_property(alg_hold(alg_invoke(v_this, "PeekNext", NULL, 0)), "TypeOfToken")), e_tokentype_tokenVcolon)))))) {
+    if (alg_truthy(alg_hold((or_69 = alg_hold(alg_invoke(v_this, "Check", (Value[]){e_tokentype_tokenVidentifier}, 1)), !alg_truthy(or_69) ? or_69 : alg_hold((q_0 = alg_hold(alg_property(alg_hold(alg_invoke(v_this, "PeekNext", NULL, 0)), "TypeOfToken")), alg_equal(q_0, e_tokentype_tokenVcolon))))))) {
         {
             int32_t rt_584 = alg_root_top;
             int32_t rh_585 = alg_hold_top;
@@ -4194,7 +4233,7 @@ static Value m_parser_argument_2_list_list(Value v_this, Value *args, int32_t co
             alg_hold_top = rh_585;
             (void)(alg_hold(alg_invoke(v_names, "Add", (Value[]){v_thename}, 1)));
             alg_hold_top = rh_585;
-            (void)(alg_hold(alg_invoke(v_arguments, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Expression", NULL, 0))}, 1)));
+            (void)(alg_hold((q_1 = alg_hold(v_arguments), alg_invoke(q_1, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Expression", NULL, 0))}, 1))));
             alg_hold_top = rh_585;
             Value ret_211 = alg_nil();
             alg_root_top = rt_base;
@@ -4204,13 +4243,13 @@ static Value m_parser_argument_2_list_list(Value v_this, Value *args, int32_t co
         }
     }
     alg_hold_top = rh_583;
-    if (alg_truthy(alg_hold((or_70 = alg_hold(alg_greater(alg_hold(alg_property(v_names, "Length")), alg_int(0))), !alg_truthy(or_70) ? or_70 : alg_hold(alg_not_equal(alg_hold(alg_str(alg_hold(alg_subscript_get(v_names, alg_hold(alg_subtract(alg_hold(alg_property(v_names, "Length")), alg_int(1))))))), alg_literal(""))))))) {
+    if (alg_truthy(alg_hold((or_70 = alg_hold(alg_greater(alg_hold(alg_property(v_names, "Length")), alg_int(0))), !alg_truthy(or_70) ? or_70 : alg_hold(alg_not_equal(alg_hold(alg_str(alg_hold((q_2 = alg_hold(v_names), alg_subscript_get(q_2, alg_hold(alg_subtract(alg_hold(alg_property(v_names, "Length")), alg_int(1)))))))), alg_literal(""))))))) {
         alg_raise(alg_literal("A positional argument cannot follow a named one."));
     }
     alg_hold_top = rh_583;
     (void)(alg_hold(alg_invoke(v_names, "Add", (Value[]){alg_literal("")}, 1)));
     alg_hold_top = rh_583;
-    (void)(alg_hold(alg_invoke(v_arguments, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Expression", NULL, 0))}, 1)));
+    (void)(alg_hold((q_3 = alg_hold(v_arguments), alg_invoke(q_3, "Add", (Value[]){alg_hold(alg_invoke(v_this, "Expression", NULL, 0))}, 1))));
     alg_hold_top = rh_583;
     Value ret_212 = alg_nil();
     alg_root_top = rt_base;
@@ -4377,6 +4416,7 @@ static Value m_parser_error_2_token_string(Value v_this, Value *args, int32_t co
 
 static Value m_parser_consume_2_tokentype_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -4393,7 +4433,7 @@ static Value m_parser_consume_2_tokentype_string(Value v_this, Value *args, int3
         return ret_228;
     }
     alg_hold_top = rh_594;
-    alg_raise(alg_hold(alg_invoke(v_this, "Error", (Value[]){alg_hold(alg_invoke(v_this, "Previous", NULL, 0)), v_message}, 2)));
+    alg_raise(alg_hold((q_0 = alg_hold(alg_invoke(v_this, "Previous", NULL, 0)), alg_invoke(v_this, "Error", (Value[]){q_0, v_message}, 2))));
     alg_hold_top = rh_594;
     Value ret_229 = alg_nil();
     alg_root_top = rt_base;
@@ -4402,6 +4442,7 @@ static Value m_parser_consume_2_tokentype_string(Value v_this, Value *args, int3
 
 static Value m_parser_check_1_tokentype(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -4415,7 +4456,7 @@ static Value m_parser_check_1_tokentype(Value v_this, Value *args, int32_t count
         return ret_230;
     }
     alg_hold_top = rh_595;
-    Value ret_231 = alg_hold(alg_equal(alg_hold(alg_property(alg_hold(alg_invoke(v_this, "Peek", NULL, 0)), "TypeOfToken")), v_thetype));
+    Value ret_231 = alg_hold((q_0 = alg_hold(alg_property(alg_hold(alg_invoke(v_this, "Peek", NULL, 0)), "TypeOfToken")), alg_equal(q_0, v_thetype)));
     alg_root_top = rt_base;
     return ret_231;
     alg_hold_top = rh_595;
@@ -4426,6 +4467,7 @@ static Value m_parser_check_1_tokentype(Value v_this, Value *args, int32_t count
 
 static Value m_parser_checkword_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -4439,7 +4481,7 @@ static Value m_parser_checkword_1_string(Value v_this, Value *args, int32_t coun
         return ret_233;
     }
     alg_hold_top = rh_596;
-    Value ret_234 = alg_hold(alg_equal(alg_hold(alg_to_lower(alg_hold(alg_str(alg_hold(alg_property(alg_hold(alg_invoke(v_this, "Peek", NULL, 0)), "Lexeme")))))), v_word));
+    Value ret_234 = alg_hold((q_0 = alg_hold(alg_to_lower(alg_hold(alg_str(alg_hold(alg_property(alg_hold(alg_invoke(v_this, "Peek", NULL, 0)), "Lexeme")))))), alg_equal(q_0, v_word)));
     alg_root_top = rt_base;
     return ret_234;
     alg_hold_top = rh_596;
@@ -4469,11 +4511,12 @@ static Value m_parser_advance_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_parser_isatend_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
     int32_t rh_598 = alg_hold_top;
-    Value ret_238 = alg_hold(alg_equal(alg_hold(alg_property(alg_hold(alg_invoke(v_this, "Peek", NULL, 0)), "TypeOfToken")), e_tokentype_eof));
+    Value ret_238 = alg_hold((q_0 = alg_hold(alg_property(alg_hold(alg_invoke(v_this, "Peek", NULL, 0)), "TypeOfToken")), alg_equal(q_0, e_tokentype_eof)));
     alg_root_top = rt_base;
     return ret_238;
     alg_hold_top = rh_598;
@@ -4499,17 +4542,18 @@ static Value m_parser_peek_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_parser_peeknext_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
     int32_t rh_600 = alg_hold_top;
-    if (alg_truthy(alg_hold(alg_greater_equal(alg_hold(alg_add(alg_property(v_this, "Current"), alg_int(1))), alg_hold(alg_property(alg_property(v_this, "Tokens"), "Length")))))) {
-        Value ret_242 = alg_hold(alg_subscript_get(alg_property(v_this, "Tokens"), alg_hold(alg_subtract(alg_hold(alg_property(alg_property(v_this, "Tokens"), "Length")), alg_int(1)))));
+    if (alg_truthy(alg_hold((q_0 = alg_hold(alg_add(alg_property(v_this, "Current"), alg_int(1))), alg_greater_equal(q_0, alg_hold(alg_property(alg_property(v_this, "Tokens"), "Length"))))))) {
+        Value ret_242 = alg_hold((q_1 = alg_hold(alg_property(v_this, "Tokens")), alg_subscript_get(q_1, alg_hold(alg_subtract(alg_hold(alg_property(alg_property(v_this, "Tokens"), "Length")), alg_int(1))))));
         alg_root_top = rt_base;
         return ret_242;
     }
     alg_hold_top = rh_600;
-    Value ret_243 = alg_hold(alg_subscript_get(alg_property(v_this, "Tokens"), alg_hold(alg_add(alg_property(v_this, "Current"), alg_int(1)))));
+    Value ret_243 = alg_hold((q_2 = alg_hold(alg_property(v_this, "Tokens")), alg_subscript_get(q_2, alg_hold(alg_add(alg_property(v_this, "Current"), alg_int(1))))));
     alg_root_top = rt_base;
     return ret_243;
     alg_hold_top = rh_600;
@@ -4520,11 +4564,12 @@ static Value m_parser_peeknext_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_parser_previous_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
     int32_t rh_601 = alg_hold_top;
-    Value ret_245 = alg_hold(alg_subscript_get(alg_property(v_this, "Tokens"), alg_hold(alg_subtract(alg_property(v_this, "Current"), alg_int(1)))));
+    Value ret_245 = alg_hold((q_0 = alg_hold(alg_property(v_this, "Tokens")), alg_subscript_get(q_0, alg_hold(alg_subtract(alg_property(v_this, "Current"), alg_int(1))))));
     alg_root_top = rt_base;
     return ret_245;
     alg_hold_top = rh_601;

@@ -96,6 +96,7 @@ static Value i_objenumtype(Value v_this, Value *args, int32_t count) {
 
 static Value m_objenumtype_init_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -105,7 +106,7 @@ static Value m_objenumtype_init_1_string(Value v_this, Value *args, int32_t coun
     int32_t rh_338 = alg_hold_top;
     (void)(alg_hold(alg_set_property(v_this, "Name", v_name)));
     alg_hold_top = rh_338;
-    (void)(alg_hold(alg_set_property(v_this, "Members", alg_hold(alg_map()))));
+    (void)(alg_hold((q_0 = alg_hold(v_this), alg_set_property(q_0, "Members", alg_hold(alg_map())))));
     alg_hold_top = rh_338;
     Value ret_5 = alg_nil();
     alg_root_top = rt_base;
@@ -114,6 +115,7 @@ static Value m_objenumtype_init_1_string(Value v_this, Value *args, int32_t coun
 
 static Value m_objenumtype_add_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1, q_2, q_3;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -125,9 +127,9 @@ static Value m_objenumtype_add_1_string(Value v_this, Value *args, int32_t count
     (void)v_member;
     alg_root(&v_member, 1);
     alg_hold_top = rh_339;
-    (void)((v_member = alg_hold(alg_new(k_objenum, (Value[]){alg_property(v_this, "Name"), v_membername, alg_hold(alg_property(alg_property(v_this, "Members"), "Length"))}, 3))));
+    (void)((v_member = alg_hold((q_0 = alg_hold(alg_property(v_this, "Name")), q_1 = alg_hold(v_membername), alg_new(k_objenum, (Value[]){q_0, q_1, alg_hold(alg_property(alg_property(v_this, "Members"), "Length"))}, 3)))));
     alg_hold_top = rh_339;
-    (void)(alg_hold(alg_invoke(alg_property(v_this, "Members"), "Put", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){v_membername}, 1)), v_member}, 2)));
+    (void)(alg_hold((q_2 = alg_hold(alg_property(v_this, "Members")), q_3 = alg_hold(f_foldcase(NULL, (Value[]){v_membername}, 1)), alg_invoke(q_2, "Put", (Value[]){q_3, v_member}, 2))));
     alg_hold_top = rh_339;
     Value ret_6 = v_member;
     alg_root_top = rt_base;
@@ -140,6 +142,7 @@ static Value m_objenumtype_add_1_string(Value v_this, Value *args, int32_t count
 
 static Value m_objenumtype_get_1_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    Value q_0, q_1;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -147,11 +150,11 @@ static Value m_objenumtype_get_1_token(Value v_this, Value *args, int32_t count)
     (void)v_thename;
     alg_root(&v_thename, 1);
     int32_t rh_340 = alg_hold_top;
-    if (alg_truthy(alg_hold(alg_not(alg_hold(alg_invoke(alg_property(v_this, "Members"), "Contains", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(v_thename, "Lexeme"))}, 1))}, 1)))))) {
+    if (alg_truthy(alg_hold(alg_not(alg_hold((q_0 = alg_hold(alg_property(v_this, "Members")), alg_invoke(q_0, "Contains", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(v_thename, "Lexeme"))}, 1))}, 1))))))) {
         alg_raise(alg_hold(alg_add(alg_hold(alg_add(alg_literal("Undefined enum member '"), alg_hold(alg_property(v_thename, "Lexeme")))), alg_literal("'."))));
     }
     alg_hold_top = rh_340;
-    Value ret_8 = alg_hold(alg_invoke(alg_property(v_this, "Members"), "Get", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(v_thename, "Lexeme"))}, 1))}, 1));
+    Value ret_8 = alg_hold((q_1 = alg_hold(alg_property(v_this, "Members")), alg_invoke(q_1, "Get", (Value[]){alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(v_thename, "Lexeme"))}, 1))}, 1)));
     alg_root_top = rt_base;
     return ret_8;
     alg_hold_top = rh_340;
