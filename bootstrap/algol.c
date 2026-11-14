@@ -3587,9 +3587,13 @@ static char **wide_arguments(int argc, char **argv) {
    an access, which the compiler must keep however little it accomplishes.
 
    Guarded by ALG_FFI because a build without it opens no library and resolves
-   no symbol, so the documented `cc -std=c11 -O2 -o DIR/prog DIR/*.c` is
-   unchanged.  A build passing -DALG_FFI already passes -lffi and now passes
-   -lm beside it. */
+   no symbol, so the documented plain `cc` over an emitted directory is
+   unchanged and still needs a C compiler and nothing else.  A build passing
+   -DALG_FFI already passes -lffi and now passes -lm beside it.
+
+   (That sentence named the emitted glob until the glob's own slash-star was
+   read as a nested comment opener: a block comment holding a shell pattern is
+   -Wcomment's business, and algol.c must build clean under -Wall -Wextra.) */
 static void libm_anchor(void) {
     double (*volatile reached)(double) = atan;
 
