@@ -28,6 +28,8 @@ _Static_assert (ALG_RUNTIME_VERSION == 400,
 
 #if defined(_WIN32)
 #include <windows.h>
+#include <io.h>
+#include <fcntl.h>
 #endif
 
 #define ARENA_CHUNK (1024 * 1024)
@@ -3268,6 +3270,18 @@ Value alg_getdir(void) {
     if (getcwd(here, sizeof here) == NULL)
         alg_error("GetDir failed: cannot read the working directory.");
 
+#if defined(_WIN32)
+    /* ⚠️ '/' IS THE LANGUAGE'S SEPARATOR, so GetDir answers in it on Windows
+       too.  getcwd says 'C:\work\here', and every program joining a name on
+       -- `GetDir () + '/' + Name`, which 0183 does and which the library's
+       FullPath is built on -- then held two separators in one path and
+       compared unequal to a path it had built itself.  Every Windows API
+       this runtime calls accepts '/', so nothing is lost: 'C:/work/here'
+       still opens, changes to and lists exactly as before. */
+    for (char *at = here; *at != '\0'; at++)
+        if (*at == '\\') *at = '/';
+#endif
+
     return alg_string_n(here, (int32_t)strlen(here));
 }
 
@@ -3389,6 +3403,21 @@ void alg_set_arguments(int argc, char **argv) {
     argument_values = argv;
 
     if (argc > 0) program_path = resolve_program(argv[0]);
+
+#if defined(_WIN32)
+    /* ⚠️ A program's OUTPUT is the bytes it wrote, and Windows' text mode
+       makes it something else: every '\n' leaves as "\r\n".  WriteLn and
+       ErrorLn end a line with #10 and "never the host's line separator"
+       [RT-015, RT-030], so the stream adding a '\r' was the C library
+       overriding a rule, and the same program printed different bytes on
+       Windows than everywhere else.  Seen as
+       defects.sh's CE-2 'reproducing' on output that was right but for a
+       '\r' per line.  Both streams, because a raise goes to stderr and a
+       harness compares it too.  stdin is LEFT in text mode: there the
+       translation turns a Windows "\r\n" into the '\n' ReadLn splits on. */
+    _setmode(_fileno(stdout), _O_BINARY);
+    _setmode(_fileno(stderr), _O_BINARY);
+#endif
 
     atexit(alg_shutdown);
 }

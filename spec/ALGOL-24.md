@@ -12925,6 +12925,12 @@ them answers a status code to be checked or ignored.
 runs where there are none; an argument that could never change the answer would
 only read as though it might.
 
+**`GetDir` separates with `/` on every host**, Windows included, where it
+answers `C:/work/here` rather than the host's `C:\work\here`. A program joins a
+name on with `GetDir () + '/' + Name`, and that has to produce one path in one
+spelling, not two separators that compare unequal to a path the program built
+itself. Every Windows call a program reaches accepts `/`, so nothing is lost.
+
 **`Entries` answers a name, never a path.** Each element is the entry's own
 name as the directory records it, so a program wanting a path joins it to the
 directory it asked about — which is the only form that stays right when the

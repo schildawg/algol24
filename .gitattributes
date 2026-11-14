@@ -20,3 +20,12 @@ spec/probes/** -text
 conformance/** -text
 refusals/**   -text
 defects/**    -text
+
+# ⚠️ And the collector's .out files, which were missed until Windows showed it.
+# Git for Windows defaults to core.autocrlf=true, so a checkout there rewrote
+# each recorded line to end in CRLF -- and the corpus still passed, because
+# the C library's text-mode stdout was adding the same '\r' the checkout had.
+# Once stdout stopped doing that, as [RT-015] requires, seven of the eight
+# cases "failed" on bytes nobody could see.  Two wrongs agreeing is the same
+# trap as above, found from the other side.
+collector/**  -text
