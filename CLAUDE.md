@@ -16,7 +16,7 @@ an old thing, when the old-looking surface is the deliberate part and the
 capability behind it is the point. Pascal may be named as the *syntax's*
 lineage, never as the language's identity.
 
-**v0.4.1.** The language is **stable, not closed**: it changes only on measured
+**v0.4.2.** The language is **stable, not closed**: it changes only on measured
 demand from a project using it, and the measurement goes in the proposal. That
 is the whole policy, and it replaces the sentence this file used to carry about
 the language being done — which had to be rewritten at every release that
@@ -1315,6 +1315,38 @@ arity warning would have diverged every case with a wrong-count call in it,
   either accumulated for the whole loop. Both reset first, through a comma
   expression in the C header.
 
+  ⚠️ **A HALF-BUILT COLLECTION LITERAL IS A TEMPORARY TOO, and holding the
+  FINISHED one is not the same thing.** `[A, B, F ()]` emits a chain —
+  `alg_list_keep(alg_list_keep(alg_list(), q_0), ...)` — and every partial
+  result in it lives in a C temporary the shadow stack cannot see. `InOrder`
+  hoists all but the LAST operand into a held `q_N`, so the final element is
+  the one evaluated while the collection already exists: a call there reaches a
+  safe point with the list half filled and registered nowhere, the sweep takes
+  it, and the append that follows writes into a released object. `Evaluate`'s
+  own hold of the expression is applied to the finished chain, which is after
+  the window. One `alg_hold` on the `alg_list()` / `alg_map()` at the base
+  covers all of it, because `alg_list_keep` and `alg_map_keep` answer the
+  collection they were given rather than a new one — every link is the same
+  object. `collector/0008`.
+
+  ⚠️ **NOTHING RAN `algvm --test`, which is why a crash in the machine's own
+  emitter was found downstream.** `./test.sh vm/Vm.a24` runs the machine's
+  tests under `algc`, and `vm/conform.sh` runs a corpus with no test block in
+  it — so the machine compiling a test block was exercised by no gate at all.
+  It segfaulted with no diagnostic on three of `shroom-slots`' units (R-19),
+  and on `vm/Vm.a24` and `vm/run.a24` here, through `VmEmitter.Survey`'s own
+  `TESTS_FOUND.Add ([CurrentFile, Str (Name.Literal), Script.QualifiedSlot (…)])`
+  — that exact shape, with the call last. `defects.sh` runs it over the
+  machine's own sources now.
+
+  ⚠️ **`--collect 0` DOES NOT TURN OFF THE COLLECTOR THAT MATTERS HERE**, and
+  reading it as though it did ruled the collector out of R-19 wrongly.
+  `--collect` is the guest machine's interval; `algvm` is itself a compiled
+  Algol-24 program, so its own safe points answer to `ALG_COLLECT_EVERY`.
+  Rule the collector out with `ALG_COLLECT_EVERY=0`, and name it with
+  `ALG_POISON=1` — which said *The collector released a List that a collection
+  still needs* on the first run.
+
   ⚠️ **An expression that answers VOID in C must not be held**, which is a
   compile error in the GENERATED file rather than in the emitter.
   `alg_writeln`, `alg_write`, `alg_stderr_line`, `alg_halt` and the three
@@ -2544,12 +2576,22 @@ which is the same rule this file applies to every other count.
 
 ⚠️ **`./defects.sh` is the newest and is a REGRESSION gate rather than a
 development one.** It carries every defect `shroom-slots` and `algol24.com`
-reported — sixteen — each reduced to the smallest program that shows it, and it
-was written red and finished green. Seven of them divide the processors, so
+reported, each reduced to the smallest program that shows it, and it was
+written red and finished green — the count stood in this sentence and went
+stale the first time the file grew, which is the rule the rest of this file
+already follows. Seven of them divide the processors, so
 those checks compare the three answers to each other rather than to recorded
 text: a divergence has no single expected output, and comparing is what stays
 honest if the right answer is later decided differently than the script
 guessed.
+
+⚠️ **A REPORT MAY NOT BE A DEFECT, which is why `report` has a third status.**
+`SPECIFIED` is for a report that describes a rule working as written — a
+*hazard* in the taxonomy the reporting projects use. There is nothing to
+repair and the check still belongs there, because it holds the rule: R-20 is
+[TST-003], and the check is that all three processors still agree about what a
+`--test` run evaluates. Calling that FIXED would be a claim about a repair
+nobody made.
 
 ⚠️ **It caught two things neither corpus did**, which is the argument for
 keeping it. A **stale `vm/algvm`** — both binaries link the hand-written
@@ -2847,6 +2889,31 @@ including the `[ERROR]` line naming why each failure failed.**
 
 ⚠️ A test failure prints exactly one `[ERROR]` line, not three: `Console.Error`
 adds a source line and a caret, and a test failure does not go through it.
+
+⚠️ **`--test` EVALUATES THE TOP-LEVEL DECLARATIONS AND NOT THE STATEMENTS
+BETWEEN THEM** [TST-003], so a declaration whose initializer depends on a
+statement above it gets a value no run of the program can produce. That is what
+makes a unit testable at all — `vm/Vm.a24`'s handler table is built by
+`BuildHandlers ()` *in a `var`* for exactly this reason — and it is also a
+trap: `shroom-slots` filled a list with four `Add` statements and a later
+declaration took `mod Crew.Length`, which under `--test` was `mod 0`. **Neither
+half of [TST-003] can be dropped**: a test body reaches the declarations around
+it, so skipping those leaves it nothing to test (`conformance/0103` requires
+it), and running the statements runs the program. The answer in a program is to
+make each declaration whole on its own — one literal rather than a declaration
+and the statements that finish it. R-20, and it is a HAZARD rather than a
+defect.
+
+⚠️ **`Main.RunTests` REPORTS THROUGH `ReportRuntime`, and it did not until
+R-21.** A raise from the declaration phase escaped into `algc`'s own uncaught
+path — where compiled Algol-24 carries no location [ERR-003] — so
+`algc --test` printed the message and nothing else, while `algc` and
+`algvm --test` both named the file and the line. That is the one mode where
+the location is the whole of what a reader gets: the failing statement is a
+declaration the program would never have reached in that state, so there is
+nothing in its behaviour to read the cause off. Three thousand lines, a raise
+with no line, and the processor that would have named it crashing on the same
+file (R-19) is what it cost.
 
 ⚠️ **COMPILED ALGOL-24 DOES NOT CARRY SOURCE INFORMATION AT RUN TIME, and
 that is a DECISION rather than a gap** — [ERR-003]. Carrying it means the

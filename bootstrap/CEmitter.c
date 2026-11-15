@@ -483,7 +483,7 @@ static Value i_cemitter(Value v_this, Value *args, int32_t count) {
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_set_property(v_this, "Declarations", alg_widen(alg_hold(alg_buffer(alg_int(0))), "Buffer"));
-    alg_set_property(v_this, "RootSymbols", alg_widen(alg_hold(alg_list()), "List"));
+    alg_set_property(v_this, "RootSymbols", alg_widen(alg_hold(alg_hold(alg_list())), "List"));
     alg_set_property(v_this, "RootMarks", alg_widen(alg_int(0), "Integer"));
     alg_set_property(v_this, "FrameRoots", alg_widen(alg_literal(""), "String"));
     alg_set_property(v_this, "OrderTemps", alg_widen(alg_int(0), "Integer"));
@@ -516,10 +516,10 @@ static Value i_cemitter(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Loops", alg_widen(alg_int(0), "Integer"));
     alg_set_property(v_this, "TryDepth", alg_widen(alg_int(0), "Integer"));
     alg_set_property(v_this, "LoopTryDepth", alg_widen(alg_int(0), "Integer"));
-    alg_set_property(v_this, "LoopLabels", alg_widen(alg_hold(alg_list()), "List"));
-    alg_set_property(v_this, "LoopDepths", alg_widen(alg_hold(alg_list()), "List"));
-    alg_set_property(v_this, "Jumped", alg_widen(alg_hold(alg_list()), "Set"));
-    alg_set_property(v_this, "LabelDepths", alg_widen(alg_hold(alg_list()), "List"));
+    alg_set_property(v_this, "LoopLabels", alg_widen(alg_hold(alg_hold(alg_list())), "List"));
+    alg_set_property(v_this, "LoopDepths", alg_widen(alg_hold(alg_hold(alg_list())), "List"));
+    alg_set_property(v_this, "Jumped", alg_widen(alg_hold(alg_hold(alg_list())), "Set"));
+    alg_set_property(v_this, "LabelDepths", alg_widen(alg_hold(alg_hold(alg_list())), "List"));
     alg_set_property(v_this, "Volatiles", alg_widen(alg_bool(false), "Boolean"));
     alg_set_property(v_this, "Renames", alg_nil());
     alg_set_property(v_this, "Overloaded", alg_nil());
@@ -3589,13 +3589,13 @@ static Value m_cemitter_declaresnested_1_list(Value v_this, Value *args, int32_t
                     return ret_113;
                 }
                 alg_hold_top = rh_1752;
-                if (alg_truthy(alg_hold((or_30 = alg_is_class(v_thestmt, k_whilestmt), !alg_truthy(or_30) ? or_30 : alg_hold(alg_invoke(v_this, "DeclaresNested", (Value[]){alg_hold(alg_list_keep(alg_list(), alg_hold(alg_property(v_thestmt, "Body"))))}, 1)))))) {
+                if (alg_truthy(alg_hold((or_30 = alg_is_class(v_thestmt, k_whilestmt), !alg_truthy(or_30) ? or_30 : alg_hold(alg_invoke(v_this, "DeclaresNested", (Value[]){alg_hold(alg_list_keep(alg_hold(alg_list()), alg_hold(alg_property(v_thestmt, "Body"))))}, 1)))))) {
                     Value ret_114 = alg_bool(true);
                     alg_root_top = rt_base;
                     return ret_114;
                 }
                 alg_hold_top = rh_1752;
-                if (alg_truthy(alg_hold((or_31 = alg_is_class(v_thestmt, k_forinstmt), !alg_truthy(or_31) ? or_31 : alg_hold(alg_invoke(v_this, "DeclaresNested", (Value[]){alg_hold(alg_list_keep(alg_list(), alg_hold(alg_property(v_thestmt, "Body"))))}, 1)))))) {
+                if (alg_truthy(alg_hold((or_31 = alg_is_class(v_thestmt, k_forinstmt), !alg_truthy(or_31) ? or_31 : alg_hold(alg_invoke(v_this, "DeclaresNested", (Value[]){alg_hold(alg_list_keep(alg_hold(alg_list()), alg_hold(alg_property(v_thestmt, "Body"))))}, 1)))))) {
                     Value ret_115 = alg_bool(true);
                     alg_root_top = rt_base;
                     return ret_115;
@@ -3604,13 +3604,13 @@ static Value m_cemitter_declaresnested_1_list(Value v_this, Value *args, int32_t
                 if (alg_truthy(alg_is_class(v_thestmt, k_ifstmt))) {
                     {
                         int32_t rh_1753 = alg_hold_top;
-                        if (alg_truthy(alg_hold(alg_invoke(v_this, "DeclaresNested", (Value[]){alg_hold(alg_list_keep(alg_list(), alg_hold(alg_property(v_thestmt, "ThenBranch"))))}, 1)))) {
+                        if (alg_truthy(alg_hold(alg_invoke(v_this, "DeclaresNested", (Value[]){alg_hold(alg_list_keep(alg_hold(alg_list()), alg_hold(alg_property(v_thestmt, "ThenBranch"))))}, 1)))) {
                             Value ret_116 = alg_bool(true);
                             alg_root_top = rt_base;
                             return ret_116;
                         }
                         alg_hold_top = rh_1753;
-                        if (alg_truthy(alg_hold((or_32 = alg_hold(alg_not_equal(alg_hold(alg_property(v_thestmt, "ElseBranch")), alg_nil())), !alg_truthy(or_32) ? or_32 : alg_hold(alg_invoke(v_this, "DeclaresNested", (Value[]){alg_hold(alg_list_keep(alg_list(), alg_hold(alg_property(v_thestmt, "ElseBranch"))))}, 1)))))) {
+                        if (alg_truthy(alg_hold((or_32 = alg_hold(alg_not_equal(alg_hold(alg_property(v_thestmt, "ElseBranch")), alg_nil())), !alg_truthy(or_32) ? or_32 : alg_hold(alg_invoke(v_this, "DeclaresNested", (Value[]){alg_hold(alg_list_keep(alg_hold(alg_list()), alg_hold(alg_property(v_thestmt, "ElseBranch"))))}, 1)))))) {
                             Value ret_117 = alg_bool(true);
                             alg_root_top = rt_base;
                             return ret_117;
@@ -3623,7 +3623,7 @@ static Value m_cemitter_declaresnested_1_list(Value v_this, Value *args, int32_t
                     {
                         int32_t rt_1754 = alg_root_top;
                         int32_t rh_1755 = alg_hold_top;
-                        if (alg_truthy(alg_hold(alg_invoke(v_this, "DeclaresNested", (Value[]){alg_hold(alg_list_keep(alg_list(), alg_hold(alg_property(v_thestmt, "TryBlock"))))}, 1)))) {
+                        if (alg_truthy(alg_hold(alg_invoke(v_this, "DeclaresNested", (Value[]){alg_hold(alg_list_keep(alg_hold(alg_list()), alg_hold(alg_property(v_thestmt, "TryBlock"))))}, 1)))) {
                             Value ret_118 = alg_bool(true);
                             alg_root_top = rt_base;
                             return ret_118;
@@ -3644,7 +3644,7 @@ static Value m_cemitter_declaresnested_1_list(Value v_this, Value *args, int32_t
                                 Value v_handler = alg_iterable_at(loop_119, at_119);
                                 (void)v_handler;
                                 alg_root(&v_handler, 1);
-                                if (alg_truthy(alg_hold(alg_invoke(v_this, "DeclaresNested", (Value[]){alg_hold(alg_list_keep(alg_list(), alg_hold(alg_property(v_handler, "Body"))))}, 1)))) {
+                                if (alg_truthy(alg_hold(alg_invoke(v_this, "DeclaresNested", (Value[]){alg_hold(alg_list_keep(alg_hold(alg_list()), alg_hold(alg_property(v_handler, "Body"))))}, 1)))) {
                                     Value ret_120 = alg_bool(true);
                                     alg_root_top = rt_base;
                                     return ret_120;
@@ -3748,7 +3748,7 @@ static Value m_cemitter_collectbindings_2_list_list(Value v_this, Value *args, i
                         int32_t rh_1765 = alg_hold_top;
                         (void)(alg_hold((q_2 = alg_hold(v_names), alg_invoke(v_this, "AddOnce", (Value[]){q_2, alg_hold(alg_str(alg_hold(alg_property(alg_hold(alg_property(v_thestmt, "Name")), "Lexeme"))))}, 2))));
                         alg_hold_top = rh_1765;
-                        (void)(alg_hold((q_3 = alg_hold(alg_list_keep(alg_list(), alg_hold(alg_property(v_thestmt, "Body")))), alg_invoke(v_this, "CollectBindings", (Value[]){q_3, v_names}, 2))));
+                        (void)(alg_hold((q_3 = alg_hold(alg_list_keep(alg_hold(alg_list()), alg_hold(alg_property(v_thestmt, "Body")))), alg_invoke(v_this, "CollectBindings", (Value[]){q_3, v_names}, 2))));
                         alg_hold_top = rh_1765;
                     }
                 }
@@ -3758,16 +3758,16 @@ static Value m_cemitter_collectbindings_2_list_list(Value v_this, Value *args, i
                 }
                 alg_hold_top = rh_1762;
                 if (alg_truthy(alg_is_class(v_thestmt, k_whilestmt))) {
-                    (void)(alg_hold((q_5 = alg_hold(alg_list_keep(alg_list(), alg_hold(alg_property(v_thestmt, "Body")))), alg_invoke(v_this, "CollectBindings", (Value[]){q_5, v_names}, 2))));
+                    (void)(alg_hold((q_5 = alg_hold(alg_list_keep(alg_hold(alg_list()), alg_hold(alg_property(v_thestmt, "Body")))), alg_invoke(v_this, "CollectBindings", (Value[]){q_5, v_names}, 2))));
                 }
                 alg_hold_top = rh_1762;
                 if (alg_truthy(alg_is_class(v_thestmt, k_ifstmt))) {
                     {
                         int32_t rh_1766 = alg_hold_top;
-                        (void)(alg_hold((q_6 = alg_hold(alg_list_keep(alg_list(), alg_hold(alg_property(v_thestmt, "ThenBranch")))), alg_invoke(v_this, "CollectBindings", (Value[]){q_6, v_names}, 2))));
+                        (void)(alg_hold((q_6 = alg_hold(alg_list_keep(alg_hold(alg_list()), alg_hold(alg_property(v_thestmt, "ThenBranch")))), alg_invoke(v_this, "CollectBindings", (Value[]){q_6, v_names}, 2))));
                         alg_hold_top = rh_1766;
                         if (alg_truthy(alg_hold(alg_not_equal(alg_hold(alg_property(v_thestmt, "ElseBranch")), alg_nil())))) {
-                            (void)(alg_hold((q_7 = alg_hold(alg_list_keep(alg_list(), alg_hold(alg_property(v_thestmt, "ElseBranch")))), alg_invoke(v_this, "CollectBindings", (Value[]){q_7, v_names}, 2))));
+                            (void)(alg_hold((q_7 = alg_hold(alg_list_keep(alg_hold(alg_list()), alg_hold(alg_property(v_thestmt, "ElseBranch")))), alg_invoke(v_this, "CollectBindings", (Value[]){q_7, v_names}, 2))));
                         }
                         alg_hold_top = rh_1766;
                     }
@@ -3777,7 +3777,7 @@ static Value m_cemitter_collectbindings_2_list_list(Value v_this, Value *args, i
                     {
                         int32_t rt_1767 = alg_root_top;
                         int32_t rh_1768 = alg_hold_top;
-                        (void)(alg_hold((q_8 = alg_hold(alg_list_keep(alg_list(), alg_hold(alg_property(v_thestmt, "TryBlock")))), alg_invoke(v_this, "CollectBindings", (Value[]){q_8, v_names}, 2))));
+                        (void)(alg_hold((q_8 = alg_hold(alg_list_keep(alg_hold(alg_list()), alg_hold(alg_property(v_thestmt, "TryBlock")))), alg_invoke(v_this, "CollectBindings", (Value[]){q_8, v_names}, 2))));
                         alg_hold_top = rh_1768;
                         Value v_handlers = alg_hold(alg_invoke(alg_hold(alg_property(v_thestmt, "Handlers")), "Values", NULL, 0));
                         (void)v_handlers;
@@ -3798,7 +3798,7 @@ static Value m_cemitter_collectbindings_2_list_list(Value v_this, Value *args, i
                                     int32_t rh_1771 = alg_hold_top;
                                     (void)(alg_hold((q_9 = alg_hold(v_names), alg_invoke(v_this, "AddOnce", (Value[]){q_9, alg_hold(alg_str(alg_hold(alg_property(v_handler, "Name"))))}, 2))));
                                     alg_hold_top = rh_1771;
-                                    (void)(alg_hold((q_10 = alg_hold(alg_list_keep(alg_list(), alg_hold(alg_property(v_handler, "Body")))), alg_invoke(v_this, "CollectBindings", (Value[]){q_10, v_names}, 2))));
+                                    (void)(alg_hold((q_10 = alg_hold(alg_list_keep(alg_hold(alg_list()), alg_hold(alg_property(v_handler, "Body")))), alg_invoke(v_this, "CollectBindings", (Value[]){q_10, v_names}, 2))));
                                     alg_hold_top = rh_1771;
                                 }
                                 alg_root_top = rt_1770;
@@ -4134,13 +4134,13 @@ static Value m_cemitter_containstry_1_list(Value v_this, Value *args, int32_t co
                     return ret_152;
                 }
                 alg_hold_top = rh_1793;
-                if (alg_truthy(alg_hold((or_34 = alg_is_class(v_thestmt, k_whilestmt), !alg_truthy(or_34) ? or_34 : alg_hold(alg_invoke(v_this, "ContainsTry", (Value[]){alg_hold(alg_list_keep(alg_list(), alg_hold(alg_property(v_thestmt, "Body"))))}, 1)))))) {
+                if (alg_truthy(alg_hold((or_34 = alg_is_class(v_thestmt, k_whilestmt), !alg_truthy(or_34) ? or_34 : alg_hold(alg_invoke(v_this, "ContainsTry", (Value[]){alg_hold(alg_list_keep(alg_hold(alg_list()), alg_hold(alg_property(v_thestmt, "Body"))))}, 1)))))) {
                     Value ret_153 = alg_bool(true);
                     alg_root_top = rt_base;
                     return ret_153;
                 }
                 alg_hold_top = rh_1793;
-                if (alg_truthy(alg_hold((or_35 = alg_is_class(v_thestmt, k_forinstmt), !alg_truthy(or_35) ? or_35 : alg_hold(alg_invoke(v_this, "ContainsTry", (Value[]){alg_hold(alg_list_keep(alg_list(), alg_hold(alg_property(v_thestmt, "Body"))))}, 1)))))) {
+                if (alg_truthy(alg_hold((or_35 = alg_is_class(v_thestmt, k_forinstmt), !alg_truthy(or_35) ? or_35 : alg_hold(alg_invoke(v_this, "ContainsTry", (Value[]){alg_hold(alg_list_keep(alg_hold(alg_list()), alg_hold(alg_property(v_thestmt, "Body"))))}, 1)))))) {
                     Value ret_154 = alg_bool(true);
                     alg_root_top = rt_base;
                     return ret_154;
@@ -4149,13 +4149,13 @@ static Value m_cemitter_containstry_1_list(Value v_this, Value *args, int32_t co
                 if (alg_truthy(alg_is_class(v_thestmt, k_ifstmt))) {
                     {
                         int32_t rh_1794 = alg_hold_top;
-                        if (alg_truthy(alg_hold(alg_invoke(v_this, "ContainsTry", (Value[]){alg_hold(alg_list_keep(alg_list(), alg_hold(alg_property(v_thestmt, "ThenBranch"))))}, 1)))) {
+                        if (alg_truthy(alg_hold(alg_invoke(v_this, "ContainsTry", (Value[]){alg_hold(alg_list_keep(alg_hold(alg_list()), alg_hold(alg_property(v_thestmt, "ThenBranch"))))}, 1)))) {
                             Value ret_155 = alg_bool(true);
                             alg_root_top = rt_base;
                             return ret_155;
                         }
                         alg_hold_top = rh_1794;
-                        if (alg_truthy(alg_hold((or_36 = alg_hold(alg_not_equal(alg_hold(alg_property(v_thestmt, "ElseBranch")), alg_nil())), !alg_truthy(or_36) ? or_36 : alg_hold(alg_invoke(v_this, "ContainsTry", (Value[]){alg_hold(alg_list_keep(alg_list(), alg_hold(alg_property(v_thestmt, "ElseBranch"))))}, 1)))))) {
+                        if (alg_truthy(alg_hold((or_36 = alg_hold(alg_not_equal(alg_hold(alg_property(v_thestmt, "ElseBranch")), alg_nil())), !alg_truthy(or_36) ? or_36 : alg_hold(alg_invoke(v_this, "ContainsTry", (Value[]){alg_hold(alg_list_keep(alg_hold(alg_list()), alg_hold(alg_property(v_thestmt, "ElseBranch"))))}, 1)))))) {
                             Value ret_156 = alg_bool(true);
                             alg_root_top = rt_base;
                             return ret_156;
@@ -4225,7 +4225,7 @@ static Value m_cemitter_openscope_0(Value v_this, Value *args, int32_t count) {
     alg_root(&v_this, 1);
     alg_root(args, count);
     int32_t rh_1797 = alg_hold_top;
-    Value ret_163 = alg_hold((q_0 = alg_hold(alg_property(alg_property(v_this, "Cells"), "Length")), alg_list_keep(alg_list_keep(alg_list(), q_0), alg_hold(alg_property(alg_property(v_this, "Locals"), "Length")))));
+    Value ret_163 = alg_hold((q_0 = alg_hold(alg_property(alg_property(v_this, "Cells"), "Length")), alg_list_keep(alg_list_keep(alg_hold(alg_list()), q_0), alg_hold(alg_property(alg_property(v_this, "Locals"), "Length")))));
     alg_root_top = rt_base;
     return ret_163;
     alg_hold_top = rh_1797;
@@ -8359,7 +8359,7 @@ static Value m_cemitter_visitbinary_1_binaryexpr(Value v_this, Value *args, int3
         (void)(alg_hold(alg_invoke(v_this, "Unsupported", (Value[]){alg_hold(alg_add(alg_hold(alg_add(alg_literal("Binary '"), alg_hold(alg_str(alg_hold(alg_property(alg_hold(alg_property(v_theexpr, "Op")), "Lexeme")))))), alg_char_value(39)))}, 1)));
     }
     alg_hold_top = rh_2026;
-    Value v_order = alg_hold((q_19 = alg_hold((q_18 = alg_hold(alg_property(v_theexpr, "Left")), alg_list_keep(alg_list_keep(alg_list(), q_18), alg_hold(alg_property(v_theexpr, "Right"))))), alg_invoke(v_this, "InOrder", (Value[]){q_19, alg_hold(alg_list_keep(alg_list_keep(alg_list(), v_left), v_right))}, 2)));
+    Value v_order = alg_hold((q_19 = alg_hold((q_18 = alg_hold(alg_property(v_theexpr, "Left")), alg_list_keep(alg_list_keep(alg_hold(alg_list()), q_18), alg_hold(alg_property(v_theexpr, "Right"))))), alg_invoke(v_this, "InOrder", (Value[]){q_19, alg_hold(alg_list_keep(alg_list_keep(alg_hold(alg_list()), v_left), v_right))}, 2)));
     (void)v_order;
     alg_root(&v_order, 1);
     alg_hold_top = rh_2026;
@@ -10843,7 +10843,7 @@ static Value m_cemitter_visitcollectionexpr_1_collectionexpr(Value v_this, Value
     if (alg_truthy(alg_hold(alg_property(v_theexpr, "IsMap")))) {
         {
             int32_t rh_2178 = alg_hold_top;
-            (void)((v_built = alg_literal("alg_map()")));
+            (void)((v_built = alg_literal("alg_hold(alg_map())")));
             alg_hold_top = rh_2178;
             {
                 int32_t rt_2179 = alg_root_top;
@@ -10870,7 +10870,7 @@ static Value m_cemitter_visitcollectionexpr_1_collectionexpr(Value v_this, Value
         }
     }
     alg_hold_top = rh_2169;
-    (void)((v_built = alg_literal("alg_list()")));
+    (void)((v_built = alg_literal("alg_hold(alg_list())")));
     alg_hold_top = rh_2169;
     {
         int32_t rt_2182 = alg_root_top;
@@ -11164,7 +11164,7 @@ static Value m_cemitter_visitsubscriptexpr_1_subscriptexpr(Value v_this, Value *
     (void)v_index;
     alg_root(&v_index, 1);
     alg_hold_top = rh_2211;
-    Value v_order = alg_hold((q_1 = alg_hold((q_0 = alg_hold(alg_property(v_theexpr, "Obj")), alg_list_keep(alg_list_keep(alg_list(), q_0), alg_hold(alg_property(v_theexpr, "Index"))))), alg_invoke(v_this, "InOrder", (Value[]){q_1, alg_hold(alg_list_keep(alg_list_keep(alg_list(), v_obj), v_index))}, 2)));
+    Value v_order = alg_hold((q_1 = alg_hold((q_0 = alg_hold(alg_property(v_theexpr, "Obj")), alg_list_keep(alg_list_keep(alg_hold(alg_list()), q_0), alg_hold(alg_property(v_theexpr, "Index"))))), alg_invoke(v_this, "InOrder", (Value[]){q_1, alg_hold(alg_list_keep(alg_list_keep(alg_hold(alg_list()), v_obj), v_index))}, 2)));
     (void)v_order;
     alg_root(&v_order, 1);
     alg_hold_top = rh_2211;
@@ -11199,7 +11199,7 @@ static Value m_cemitter_visitsetsubscriptexpr_1_setsubscriptexpr(Value v_this, V
     (void)v_value;
     alg_root(&v_value, 1);
     alg_hold_top = rh_2212;
-    Value v_order = alg_hold((q_2 = alg_hold((q_0 = alg_hold(alg_property(v_theexpr, "Obj")), q_1 = alg_hold(alg_property(v_theexpr, "Index")), alg_list_keep(alg_list_keep(alg_list_keep(alg_list(), q_0), q_1), alg_hold(alg_property(v_theexpr, "Value"))))), alg_invoke(v_this, "InOrder", (Value[]){q_2, alg_hold(alg_list_keep(alg_list_keep(alg_list_keep(alg_list(), v_obj), v_index), v_value))}, 2)));
+    Value v_order = alg_hold((q_2 = alg_hold((q_0 = alg_hold(alg_property(v_theexpr, "Obj")), q_1 = alg_hold(alg_property(v_theexpr, "Index")), alg_list_keep(alg_list_keep(alg_list_keep(alg_hold(alg_list()), q_0), q_1), alg_hold(alg_property(v_theexpr, "Value"))))), alg_invoke(v_this, "InOrder", (Value[]){q_2, alg_hold(alg_list_keep(alg_list_keep(alg_list_keep(alg_hold(alg_list()), v_obj), v_index), v_value))}, 2)));
     (void)v_order;
     alg_root(&v_order, 1);
     alg_hold_top = rh_2212;
@@ -11371,7 +11371,7 @@ static Value m_cemitter_visitsetexpr_1_setexpr(Value v_this, Value *args, int32_
     (void)v_value;
     alg_root(&v_value, 1);
     alg_hold_top = rh_2215;
-    Value v_order = alg_hold((q_6 = alg_hold((q_5 = alg_hold(alg_property(v_theexpr, "Obj")), alg_list_keep(alg_list_keep(alg_list(), q_5), alg_hold(alg_property(v_theexpr, "Value"))))), alg_invoke(v_this, "InOrder", (Value[]){q_6, alg_hold(alg_list_keep(alg_list_keep(alg_list(), v_obj), v_value))}, 2)));
+    Value v_order = alg_hold((q_6 = alg_hold((q_5 = alg_hold(alg_property(v_theexpr, "Obj")), alg_list_keep(alg_list_keep(alg_hold(alg_list()), q_5), alg_hold(alg_property(v_theexpr, "Value"))))), alg_invoke(v_this, "InOrder", (Value[]){q_6, alg_hold(alg_list_keep(alg_list_keep(alg_hold(alg_list()), v_obj), v_value))}, 2)));
     (void)v_order;
     alg_root(&v_order, 1);
     alg_hold_top = rh_2215;

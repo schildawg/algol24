@@ -93,7 +93,7 @@ static Value i_resolver(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Extensions", alg_nil());
     alg_set_property(v_this, "Exported", alg_nil());
     alg_set_property(v_this, "Collected", alg_widen(alg_bool(false), "Boolean"));
-    alg_set_property(v_this, "LabelScopes", alg_widen(alg_hold(alg_list()), "List"));
+    alg_set_property(v_this, "LabelScopes", alg_widen(alg_hold(alg_hold(alg_list())), "List"));
     alg_root_top = rt_base;
     return alg_nil();
 }

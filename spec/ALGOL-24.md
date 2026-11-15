@@ -1,6 +1,6 @@
 # The Algol-24 Programming Language Specification
 
-> **Algol-24 v0.4.1.** Nineteen chapters and three annexes. Every rule is
+> **Algol-24 v0.4.2.** Nineteen chapters and three annexes. Every rule is
 > decided — what the language should do — and every rule is claimed by a case: a
 > program in `conformance/`, a refusal in `refusals/`, or a reproduction in
 > `defects/`. `spec/spec.sh` prints how many there are and checks that each
@@ -15440,6 +15440,24 @@ runs.
 **[TST-003]**  A test run executes the test blocks **instead of** the program.
 The top-level statements do not run — only the declarations they would have
 created.
+
+**A DECLARATION IS THEREFORE EVALUATED IN A STATE THE PROGRAM MAY NEVER REACH,
+and that follows from the rule rather than qualifying it.** A declaration whose
+initializer depends on a top-level *statement* above it — a list a statement
+filled, a counter a statement advanced — gets the value it would have had
+before that statement ran, which is a value no execution of the program can
+produce. Both halves are necessary and neither can be dropped: a test body
+reaches the declarations around it, so skipping those would leave it nothing
+to test, and running the statements would run the program, which is what a
+test run exists not to do. What a program can do about it is make each
+declaration whole on its own — one literal rather than a declaration and the
+statements that finish it.
+
+**The failure is a raise with a location on it** [ERR-003], naming the
+declaration. That is the whole of what a reader gets, so it has to be there:
+`algc --test` reported the message without the line for as long as there was a
+`--test`, which left a program failing in a mode it does not otherwise fail in
+and nothing to point at. Reported by `shroom-slots` as R-20 and R-21.
 
 ##### conformance/0103-a-test-run.a24
 

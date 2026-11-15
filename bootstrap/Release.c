@@ -11,7 +11,7 @@ static Value *roots_Release[] = {
 void init_Release(void) {
     alg_roots(roots_Release, 1);
     int32_t rh_1272 = alg_hold_top;
-    v_version = alg_literal("0.4.1");
+    v_version = alg_literal("0.4.2");
     d_version = true;
     alg_hold_top = rh_1272;
 }

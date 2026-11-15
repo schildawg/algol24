@@ -937,7 +937,7 @@ static Value m_native_call_2(Value v_this, Value *args, int32_t count) {
                                                                                                     Value v_item = alg_iterable_at(loop_47, at_47);
                                                                                                     (void)v_item;
                                                                                                     alg_root(&v_item, 1);
-                                                                                                    (void)(alg_hold((q_42 = alg_hold(v_theset), alg_invoke(q_42, "Invoke", (Value[]){alg_literal("add"), alg_hold(alg_list_keep(alg_list(), v_item))}, 2))));
+                                                                                                    (void)(alg_hold((q_42 = alg_hold(v_theset), alg_invoke(q_42, "Invoke", (Value[]){alg_literal("add"), alg_hold(alg_list_keep(alg_hold(alg_list()), v_item))}, 2))));
                                                                                                     alg_root_top = rt_830;
                                                                                                 }
                                                                                                 alg_root_top = rt_829;
@@ -1919,11 +1919,11 @@ static Value m_interpreter_runtests_2_list_string(Value v_this, Value *args, int
     alg_hold_top = rh_892;
     (void)((v_tests = alg_hold(alg_list())));
     alg_hold_top = rh_892;
-    volatile Value v_byname = alg_hold(alg_map());
+    volatile Value v_byname = alg_hold(alg_hold(alg_map()));
     (void)v_byname;
     alg_root(&v_byname, 1);
     alg_hold_top = rh_892;
-    volatile Value v_declaredin = alg_hold(alg_map());
+    volatile Value v_declaredin = alg_hold(alg_hold(alg_map()));
     (void)v_declaredin;
     alg_root(&v_declaredin, 1);
     alg_hold_top = rh_892;
@@ -1931,7 +1931,7 @@ static Value m_interpreter_runtests_2_list_string(Value v_this, Value *args, int
     (void)v_files;
     alg_root(&v_files, 1);
     alg_hold_top = rh_892;
-    volatile Value v_byfile = alg_hold(alg_map());
+    volatile Value v_byfile = alg_hold(alg_hold(alg_map()));
     (void)v_byfile;
     alg_root(&v_byfile, 1);
     alg_hold_top = rh_892;
@@ -2409,7 +2409,7 @@ static Value m_interpreter_visitsubscriptexpr_1_subscriptexpr(Value v_this, Valu
             alg_root(&v_reader, 1);
             alg_hold_top = rh_932;
             if (alg_truthy(alg_hold(alg_not_equal(v_reader, alg_nil())))) {
-                Value ret_117 = alg_hold((q_0 = alg_hold(alg_invoke(v_reader, "Bind", (Value[]){v_target}, 1)), q_1 = alg_hold(v_this), alg_invoke(q_0, "Call", (Value[]){q_1, alg_hold(alg_list_keep(alg_list(), v_index))}, 2)));
+                Value ret_117 = alg_hold((q_0 = alg_hold(alg_invoke(v_reader, "Bind", (Value[]){v_target}, 1)), q_1 = alg_hold(v_this), alg_invoke(q_0, "Call", (Value[]){q_1, alg_hold(alg_list_keep(alg_hold(alg_list()), v_index))}, 2)));
                 alg_root_top = rt_base;
                 return ret_117;
             }
@@ -2480,7 +2480,7 @@ static Value m_interpreter_visitsetsubscriptexpr_1_setsubscriptexpr(Value v_this
             alg_root(&v_writer, 1);
             alg_hold_top = rh_935;
             if (alg_truthy(alg_hold(alg_not_equal(v_writer, alg_nil())))) {
-                Value ret_122 = alg_hold((q_0 = alg_hold(alg_invoke(v_writer, "Bind", (Value[]){v_target}, 1)), q_1 = alg_hold(v_this), alg_invoke(q_0, "Call", (Value[]){q_1, alg_hold(alg_list_keep(alg_list_keep(alg_list(), v_index), v_value))}, 2)));
+                Value ret_122 = alg_hold((q_0 = alg_hold(alg_invoke(v_writer, "Bind", (Value[]){v_target}, 1)), q_1 = alg_hold(v_this), alg_invoke(q_0, "Call", (Value[]){q_1, alg_hold(alg_list_keep(alg_list_keep(alg_hold(alg_list()), v_index), v_value))}, 2)));
                 alg_root_top = rt_base;
                 return ret_122;
             }
@@ -3156,7 +3156,7 @@ static Value m_interpreter_visitbinary_1_binaryexpr(Value v_this, Value *args, i
             alg_root(&v_defined, 1);
             alg_hold_top = rh_968;
             if (alg_truthy(alg_hold(alg_not_equal(v_defined, alg_nil())))) {
-                Value ret_173 = alg_hold((q_1 = alg_hold(alg_invoke(v_defined, "Bind", (Value[]){v_left}, 1)), q_2 = alg_hold(v_this), alg_invoke(q_1, "Call", (Value[]){q_2, alg_hold(alg_list_keep(alg_list(), v_right))}, 2)));
+                Value ret_173 = alg_hold((q_1 = alg_hold(alg_invoke(v_defined, "Bind", (Value[]){v_left}, 1)), q_2 = alg_hold(v_this), alg_invoke(q_1, "Call", (Value[]){q_2, alg_hold(alg_list_keep(alg_hold(alg_list()), v_right))}, 2)));
                 alg_root_top = rt_base;
                 return ret_173;
             }
@@ -3176,7 +3176,7 @@ static Value m_interpreter_visitbinary_1_binaryexpr(Value v_this, Value *args, i
             if (alg_truthy(alg_hold(alg_not_equal(v_ordering, alg_nil())))) {
                 {
                     int32_t rh_971 = alg_hold_top;
-                    (void)((v_left = alg_hold((q_3 = alg_hold(alg_invoke(v_ordering, "Bind", (Value[]){v_left}, 1)), q_4 = alg_hold(v_this), alg_invoke(q_3, "Call", (Value[]){q_4, alg_hold(alg_list_keep(alg_list(), v_right))}, 2)))));
+                    (void)((v_left = alg_hold((q_3 = alg_hold(alg_invoke(v_ordering, "Bind", (Value[]){v_left}, 1)), q_4 = alg_hold(v_this), alg_invoke(q_3, "Call", (Value[]){q_4, alg_hold(alg_list_keep(alg_hold(alg_list()), v_right))}, 2)))));
                     alg_hold_top = rh_971;
                     (void)((v_right = alg_int(0)));
                     alg_hold_top = rh_971;
@@ -5169,7 +5169,7 @@ static Value m_interpreter_contains_2(Value v_this, Value *args, int32_t count) 
     alg_root(&v_value, 1);
     int32_t rh_1104 = alg_hold_top;
     if (alg_truthy(alg_is_class(v_collection, k_objcollection))) {
-        Value ret_286 = alg_hold((q_0 = alg_hold(v_collection), alg_invoke(q_0, "Invoke", (Value[]){alg_literal("contains"), alg_hold(alg_list_keep(alg_list(), v_value))}, 2)));
+        Value ret_286 = alg_hold((q_0 = alg_hold(v_collection), alg_invoke(q_0, "Invoke", (Value[]){alg_literal("contains"), alg_hold(alg_list_keep(alg_hold(alg_list()), v_value))}, 2)));
         alg_root_top = rt_base;
         return ret_286;
     }
@@ -5189,7 +5189,7 @@ static Value m_interpreter_contains_2(Value v_this, Value *args, int32_t count) 
             alg_root(&v_method, 1);
             alg_hold_top = rh_1106;
             if (alg_truthy(alg_hold(alg_not_equal(v_method, alg_nil())))) {
-                Value ret_288 = alg_hold(alg_invoke(v_this, "IsTruthy", (Value[]){alg_hold((q_2 = alg_hold(alg_invoke(v_method, "Bind", (Value[]){v_collection}, 1)), q_3 = alg_hold(v_this), alg_invoke(q_2, "Call", (Value[]){q_3, alg_hold(alg_list_keep(alg_list(), v_value))}, 2)))}, 1));
+                Value ret_288 = alg_hold(alg_invoke(v_this, "IsTruthy", (Value[]){alg_hold((q_2 = alg_hold(alg_invoke(v_method, "Bind", (Value[]){v_collection}, 1)), q_3 = alg_hold(v_this), alg_invoke(q_2, "Call", (Value[]){q_3, alg_hold(alg_list_keep(alg_hold(alg_list()), v_value))}, 2)))}, 1));
                 alg_root_top = rt_base;
                 return ret_288;
             }
@@ -5449,7 +5449,7 @@ static Value m_interpreter_visitforinstmt_1_forinstmt(Value v_this, Value *args,
                                 if (ALG_SETJMP(frame_306.jump) == 0) {
                                     {
                                         int32_t rh_1129 = alg_hold_top;
-                                        (void)(alg_hold((q_3 = alg_hold(alg_list_keep(alg_list(), alg_hold(alg_property(v_thestmt, "Body")))), alg_invoke(v_this, "ExecuteBlock", (Value[]){q_3, v_scope}, 2))));
+                                        (void)(alg_hold((q_3 = alg_hold(alg_list_keep(alg_hold(alg_list()), alg_hold(alg_property(v_thestmt, "Body")))), alg_invoke(v_this, "ExecuteBlock", (Value[]){q_3, v_scope}, 2))));
                                         alg_hold_top = rh_1129;
                                     }
                                     alg_pop_frame();
@@ -6471,7 +6471,7 @@ void init_Interpreter(void) {
     alg_hold_top = rh_780;
     alg_hold_top = rh_780;
     alg_hold_top = rh_780;
-    v_programarguments = alg_hold(alg_list());
+    v_programarguments = alg_hold(alg_hold(alg_list()));
     d_programarguments = true;
     alg_hold_top = rh_780;
     alg_hold_top = rh_780;

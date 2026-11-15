@@ -578,7 +578,7 @@ static Value i_callexpr(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Callee", alg_nil());
     alg_set_property(v_this, "Paren", alg_nil());
     alg_set_property(v_this, "Arguments", alg_nil());
-    alg_set_property(v_this, "ArgumentNames", alg_widen(alg_hold(alg_list()), "List"));
+    alg_set_property(v_this, "ArgumentNames", alg_widen(alg_hold(alg_hold(alg_list())), "List"));
     alg_root_top = rt_base;
     return alg_nil();
 }

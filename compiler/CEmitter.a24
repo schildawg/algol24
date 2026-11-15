@@ -5096,9 +5096,24 @@ begin
 
         var Order := InOrder (Operands, Texts);
 
+        // ⚠️ THE PARTLY BUILT COLLECTION IS HELD, and nothing else can hold
+        // it.  The chain is one nested expression, so each partial result
+        // lives in a C temporary the shadow stack cannot see -- and the LAST
+        // element is evaluated inline rather than hoisted into a q_N, so a
+        // call there reaches a safe point with the half-filled collection
+        // registered nowhere.  `[A, B, F ()]` where F contains a loop had its
+        // list swept between the second element and the third, and compiled
+        // Algol-24 then appended to a released object: a segfault, or worse,
+        // a block handed to another owner.
+        //
+        // ONE hold covers the whole chain, because alg_list_keep and
+        // alg_map_keep answer the collection they were given rather than a
+        // new one -- so every link is the same object.  Evaluate's own hold
+        // of this expression is not that: it is applied to the finished
+        // chain, which is after the window.
         if TheExpr.IsMap then
         begin
-            Built := 'alg_map()';
+            Built := 'alg_hold(alg_map())';
 
             for var I := 0; I < TheExpr.Keys.Length; I := I + 1 do
                 Built := 'alg_map_keep(' + Built + ', ' + Str (Order[I * 2 + 1])
@@ -5107,7 +5122,7 @@ begin
             Exit Sequenced (Order, Built);
         end
 
-        Built := 'alg_list()';
+        Built := 'alg_hold(alg_list())';
 
         for var I := 0; I < TheExpr.Values.Length; I := I + 1 do
             Built := 'alg_list_keep(' + Built + ', ' + Str (Order[I + 1]) + ')';

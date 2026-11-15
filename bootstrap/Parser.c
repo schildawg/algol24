@@ -246,12 +246,12 @@ Value f_libraryfolders(Value **cells, Value *args, int32_t count) {
     (void)((v_own = alg_hold(f_folderof(NULL, (Value[]){alg_hold(alg_param_str(alg_int(0)))}, 1))));
     alg_hold_top = rh_360;
     if (alg_truthy(alg_hold(alg_equal(v_own, alg_literal(""))))) {
-        Value ret_6 = alg_hold(alg_list());
+        Value ret_6 = alg_hold(alg_hold(alg_list()));
         alg_root_top = rt_base;
         return ret_6;
     }
     alg_hold_top = rh_360;
-    Value ret_7 = alg_hold((q_0 = alg_hold(alg_add(v_own, alg_literal("/lib"))), alg_list_keep(alg_list_keep(alg_list(), q_0), alg_hold(alg_add(v_own, alg_literal("/../share/algol24/lib"))))));
+    Value ret_7 = alg_hold((q_0 = alg_hold(alg_add(v_own, alg_literal("/lib"))), alg_list_keep(alg_list_keep(alg_hold(alg_list()), q_0), alg_hold(alg_add(v_own, alg_literal("/../share/algol24/lib"))))));
     alg_root_top = rt_base;
     return ret_7;
     alg_hold_top = rh_360;
@@ -267,17 +267,17 @@ static Value i_parser(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Tokens", alg_nil());
     alg_set_property(v_this, "Current", alg_nil());
     alg_set_property(v_this, "FileName", alg_widen(alg_literal(""), "String"));
-    alg_set_property(v_this, "Loaded", alg_widen(alg_hold(alg_map()), "Map"));
-    alg_set_property(v_this, "Claimed", alg_widen(alg_hold(alg_map()), "Map"));
-    alg_set_property(v_this, "PrivateNames", alg_widen(alg_hold(alg_list()), "List"));
+    alg_set_property(v_this, "Loaded", alg_widen(alg_hold(alg_hold(alg_map())), "Map"));
+    alg_set_property(v_this, "Claimed", alg_widen(alg_hold(alg_hold(alg_map())), "Map"));
+    alg_set_property(v_this, "PrivateNames", alg_widen(alg_hold(alg_hold(alg_list())), "List"));
     alg_set_property(v_this, "InPrivateSection", alg_widen(alg_bool(false), "Boolean"));
-    alg_set_property(v_this, "ClassPrivates", alg_widen(alg_hold(alg_list()), "List"));
+    alg_set_property(v_this, "ClassPrivates", alg_widen(alg_hold(alg_hold(alg_list())), "List"));
     alg_set_property(v_this, "LoopDepth", alg_widen(alg_int(0), "Integer"));
     alg_set_property(v_this, "InProcedure", alg_widen(alg_bool(false), "Boolean"));
     alg_set_property(v_this, "SubprogramDepth", alg_widen(alg_int(0), "Integer"));
     alg_set_property(v_this, "LastGeneric", alg_widen(alg_literal(""), "String"));
     alg_set_property(v_this, "PendingLabel", alg_widen(alg_literal(""), "String"));
-    alg_set_property(v_this, "LoopLabels", alg_widen(alg_hold(alg_list()), "List"));
+    alg_set_property(v_this, "LoopLabels", alg_widen(alg_hold(alg_hold(alg_list())), "List"));
     alg_root_top = rt_base;
     return alg_nil();
 }
@@ -4700,7 +4700,7 @@ void init_Parser(void) {
     alg_hold_top = rh_351;
     alg_hold_top = rh_351;
     alg_hold_top = rh_351;
-    v_moduleVfolders = alg_hold(alg_list());
+    v_moduleVfolders = alg_hold(alg_hold(alg_list()));
     d_moduleVfolders = true;
     alg_hold_top = rh_351;
     alg_hold_top = rh_351;

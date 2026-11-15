@@ -12,7 +12,7 @@ static Value i_sourcecode(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
-    alg_set_property(v_this, "Files", alg_widen(alg_hold(alg_map()), "Map"));
+    alg_set_property(v_this, "Files", alg_widen(alg_hold(alg_hold(alg_map())), "Map"));
     alg_set_property(v_this, "FileName", alg_widen(alg_literal(""), "String"));
     alg_set_property(v_this, "Id", alg_literal("SourceCode"));
     alg_root_top = rt_base;
@@ -28,7 +28,7 @@ static Value m_sourcecode_begins_1_string(Value v_this, Value *args, int32_t cou
     (void)v_name;
     alg_root(&v_name, 1);
     int32_t rh_117 = alg_hold_top;
-    (void)(alg_set_property(v_this, "Files", alg_hold(alg_map())));
+    (void)(alg_set_property(v_this, "Files", alg_hold(alg_hold(alg_map()))));
     alg_hold_top = rh_117;
     (void)(alg_set_property(v_this, "FileName", v_name));
     alg_hold_top = rh_117;
@@ -70,7 +70,7 @@ static Value m_sourcecode_add_3_string_integer_string(Value v_this, Value *args,
     (void)((v_name = alg_hold(alg_invoke(v_this, "Keyed", (Value[]){v_file}, 1))));
     alg_hold_top = rh_118;
     if (alg_truthy(alg_hold(alg_not(alg_hold(alg_invoke(alg_property(v_this, "Files"), "Contains", (Value[]){v_name}, 1)))))) {
-        (void)(alg_hold((q_0 = alg_hold(alg_property(v_this, "Files")), q_1 = alg_hold(v_name), alg_invoke(q_0, "Put", (Value[]){q_1, alg_hold(alg_list())}, 2))));
+        (void)(alg_hold((q_0 = alg_hold(alg_property(v_this, "Files")), q_1 = alg_hold(v_name), alg_invoke(q_0, "Put", (Value[]){q_1, alg_hold(alg_hold(alg_list()))}, 2))));
     }
     alg_hold_top = rh_118;
     (void)((v_lines = alg_hold(alg_cast_kind(alg_invoke(alg_property(v_this, "Files"), "Get", (Value[]){v_name}, 1), ALG_KIND_LIST, "List"))));

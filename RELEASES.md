@@ -14,6 +14,102 @@ go stale.
 
 ---
 
+## v0.4.2 — what running the unit tests found, which the build and the gate did not
+
+No language change. Three defects, all of them older than the release that
+exposed them, all three reported by `shroom-slots` after it did the one thing
+it had not been doing when a release landed: running `algc --test` over every
+unit rather than only building and running the gate.
+
+That is the shape worth saying once. The gates here are green, the corpus
+agrees across three processors, a real session on each of three platforms found
+the last release's list — and none of it ran a **test block through the
+bytecode machine**. `./test.sh vm/Vm.a24` runs the machine's own tests under
+the interpreter; `vm/conform.sh` runs a corpus that contains no test block at
+all. So `algvm --test` was exercised by nothing, and a crash in the machine's
+own emitter sat there for at least three releases.
+
+### A collection literal's half-built collection was invisible to the collector
+
+This is the one to upgrade for, and it is not about the machine. **Every
+compiled Algol-24 program could reach it.**
+
+```algol24
+Keep.Add (['head', N, Spin ()]);     // where Spin contains a loop
+```
+
+A collection literal is emitted as a chain of calls, one per element, and each
+partial result lives in a C temporary that the shadow stack cannot see. All but
+the **last** element is evaluated into a held temporary first; the last one is
+evaluated inline, which is to say *while the collection already exists*. A call
+there reaches a safe point with the collection half filled and rooted nowhere,
+the sweep takes it, and the append that follows writes into a released object.
+
+The symptom is a segfault with nothing printed, or — worse, and just as
+available — the released block handed to another owner and a program quietly
+reading somebody else's values. Both halves of a literal are affected, a List
+and a Map alike.
+
+One hold at the base of the chain fixes it, because `alg_list_keep` and
+`alg_map_keep` answer the collection they were given rather than a new one, so
+every link in the chain is the same object and one entry covers all of it.
+Measured at nothing: `algc --compile compiler/Main.a24` reads 3.54–3.58 s
+against 3.55–3.74 before, interleaved.
+
+⚠️ **The reported symptom named the wrong component, and the measurement that
+ruled out the right one is worth recording.** It arrived as *"`algvm --test`
+crashes in its own compile pass"*, with a backtrace through `VmEmitter`'s
+`Survey` — and the collector had been ruled out because `--collect 0` crashed
+identically. `--collect` is the **guest machine's** interval. `algvm` is itself
+a compiled Algol-24 program, so its own safe points answer to
+`ALG_COLLECT_EVERY`; set that to 0 and it runs clean, and `ALG_POISON=1` names
+the fault outright on the first run. `VmEmitter.Survey` was merely the first
+code in the repository to write that literal shape with the call last.
+
+### A test run drops no location any more
+
+`algc --test` reported an uncaught runtime error's message and nothing else,
+where a plain `algc` run and `algvm --test` both name the file and the line. A
+raise from the top-level declarations escaped into `algc`'s own uncaught path,
+and compiled Algol-24 carries no location by decision [ERR-003] — so the one
+mode where the location is the whole of what a reader gets was the one mode
+without it.
+
+That matters more than its size suggests, because of the next item: the
+statement that fails under `--test` is a **declaration** the program would
+never have reached in that state, so there is nothing in the program's own
+behaviour to read the cause off. Three thousand lines, a raise with no line,
+and the processor that would have named it crashing on the same file is what it
+cost to find.
+
+### What `--test` evaluates, said where the rule is
+
+A test run executes the test blocks **instead of** the program, so the
+top-level declarations are evaluated and the statements between them are not
+[TST-003]. That is specified and all three processors agree — and it is a trap,
+because a declaration whose initializer depends on a statement above it then
+gets a value no execution of the program can produce. A list filled by four
+`Add` statements was empty, and the declaration below it took `mod 0`.
+
+Neither half of the rule can be dropped, which is why this is a note rather
+than a change. A test body reaches the declarations around it, so skipping
+those leaves it nothing to test; running the statements runs the program, which
+is what a test run exists not to do. [TST-003] now says the consequence and the
+answer: make each declaration whole on its own — one literal rather than a
+declaration and the statements that finish it.
+
+### Upgrading
+
+Nothing to change in a program. If you are on 0.4.1 or earlier and you build
+collection literals whose elements call anything, this is the release you want:
+the defect is a wrong answer or a crash, not a slowdown, and no diagnostic
+precedes it.
+
+Both formulae move together as usual, and the bundle carries
+`algol24-library` 0.3.1 unchanged.
+
+---
+
 ## v0.4.1 — the three platforms agree, and one of them could not finish a build
 
 No language change, and nothing new to call. This is what a real session on

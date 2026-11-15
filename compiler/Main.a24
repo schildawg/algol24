@@ -100,6 +100,16 @@ end
 /// program.  The main block is never executed.
 ///
 /// Answers the number of failures, so the caller can exit non-zero.
+///
+/// An uncaught value is reported the way Run reports one, with the location
+/// [ERR-003].  That is not decoration: a test run evaluates the top-level
+/// DECLARATIONS and none of the statements between them [TST-003], so a
+/// declaration can raise here that no ordinary run of the program would
+/// reach -- and without the wrapper it escaped into algc's own uncaught
+/// path, where compiled Algol-24 carries no location at all.  The message
+/// then named neither the file nor the line, in the one mode where the
+/// failing declaration is the whole of what a reader needs to find.
+/// Reported by `shroom-slots` as R-21, which R-20 cost an afternoon of.
 function RunTests(Source : String, FileName : String) : Integer;
 var
    TheScanner     : Scanner;
@@ -107,7 +117,8 @@ var
    TheResolver    : Resolver;
    TheInterpreter : Interpreter;
 
-   Stmts : List;
+   Stmts    : List;
+   Failures : Integer;
 
 begin
     SourceCode.Begins (FileName);
@@ -128,7 +139,16 @@ begin
 
     TypeChecker().Resolve(Stmts);
 
-    Exit TheInterpreter.RunTests(Stmts, FileName);
+    Failures := 0;
+
+    try
+        Failures := TheInterpreter.RunTests(Stmts, FileName);
+    except
+        on e : String do ReportRuntime (e);
+        on e : Any    do ReportRuntime (Str (e));
+    end
+
+    Exit Failures;
 end
 
 /// Scans, parses, resolves, type-checks and interprets one program.
