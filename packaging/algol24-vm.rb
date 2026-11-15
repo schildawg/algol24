@@ -17,8 +17,8 @@
 class Algol24Vm < Formula
   desc "Bytecode machine for Algol-24, with the Algol-24 runtime library"
   homepage "https://github.com/schildawg/algol24"
-  url "https://github.com/schildawg/algol24/archive/refs/tags/v0.4.1.tar.gz"
-  sha256 "74725884c4ab13469e9091501dcfa181195642b3666f26fc20e48361c6b4d7cd"
+  url "https://github.com/schildawg/algol24/archive/refs/tags/v0.4.2.tar.gz"
+  sha256 "1259acb42b17962cc1be3d18c6eb92e0d52beab429dee3fa0c14afcf6fdfb3ce"
   license "MIT"
   head "https://github.com/schildawg/algol24.git", branch: "main"
 
@@ -38,7 +38,7 @@ class Algol24Vm < Formula
   end
 
   # ⚠️ PINNED, and to a VERSION rather than a branch: the bundle is a pairing
-  # of two releases, and `algol24-vm 0.4.1` carrying `algol24-library 0.3.1`
+  # of two releases, and `algol24-vm 0.4.2` carrying `algol24-library 0.3.1`
   # says which.  The library's number is its own and does not track this one --
   # it is a separate repository with its own release events and its own defect
   # record, where algc and algvm are two binaries from one tree and so share a
