@@ -1,0 +1,57 @@
+// A collection LITERAL is built by a chain of calls -- one per element -- and
+// every partial result in that chain lives in a C temporary the shadow stack
+// cannot see.  The last element is evaluated inline rather than hoisted into a
+// temporary of its own, so a CALL there runs with the collection half filled
+// and registered nowhere: the safe point inside that call swept it, and the
+// append that followed wrote into a released object.
+//
+// ⚠️ IT IS THE LAST ELEMENT THAT MATTERS, which is why both literals here put
+// their call at the end.  Everything before it is hoisted and held; the final
+// operand is the only one evaluated while the collection already exists.
+//
+// ⚠️ AN EXPLICIT `Collect ()` CANNOT CATCH THIS, for the reason 0006 gives: a
+// call written as a statement is a statement boundary, and no collection
+// literal is in flight at one.  The collection has to arrive from inside
+// `Spin`, which is why it loops far enough to trip the automatic safe point
+// by itself.
+//
+// Reported by `shroom-slots` as R-19, where it stopped `algvm --test` on three
+// of its units with no diagnostic at all -- the machine is a compiled
+// Algol-24 program, and its own emitter builds exactly this shape:
+// `TESTS_FOUND.Add ([CurrentFile, Str (Name.Literal), Script.QualifiedSlot (...)])`.
+
+function Spin (Times : Integer) : Integer;
+var
+    Total : Integer;
+
+begin
+    Total := 0;
+
+    // The safe point is at the top of a loop body, so the iterations here are
+    // what bring a collection on while the CALLER's literal is half built.
+    for var I : Integer := 0; I < Times; I := I + 1 do
+        Total := Total + 1;
+
+    Exit Total;
+end
+
+begin
+    var Lists := List ();
+    var Maps  := List ();
+
+    for var N : Integer := 0; N < 400; N := N + 1 do
+    begin
+        Lists.Add (['head', N, Spin (500)]);
+        Maps.Add  (['head' : 'tail', 'count' : Spin (500)]);
+    end
+
+    // Read back, so a literal that was swept and reused is a wrong ANSWER
+    // here rather than only a crash.
+    var Sum := 0;
+    for var Each in Lists do Sum := Sum + Each[1] + Each[2];
+    for var Each in Maps  do Sum := Sum + Each.Get ('count');
+
+    WriteLn ('lists: ', Lists.Length, ' maps: ', Maps.Length);
+    WriteLn ('first: ', Str (Lists[0]), ' ', Str (Maps[0].Get ('head')));
+    WriteLn ('sum: ', Sum);
+end

@@ -3,9 +3,15 @@
 # THE DEFECT SWEEP, which is a harness only until it is green.
 #
 # Defects reported by two projects using the language -- shroom-slots
-# (R-1..R-15) and algol24.com (D-1..D-3) -- each reduced to the smallest program
-# that shows it, and each run under whichever processors disagree.  See
-# finished/PLAN-0.2.4.md, where the same numbering carries the root cause for each.
+# (R-1..R-15, R-19..R-21) and algol24.com (D-1..D-3) -- each reduced to the
+# smallest program that shows it, and each run under whichever processors
+# disagree.  See finished/PLAN-0.2.4.md, where the same numbering carries the
+# root cause for each of the first fifteen.
+#
+# ⚠️ NOT EVERY REPORT IS A DEFECT, and the third status is what says so.  R-20
+# describes [TST-003] working as written, which is a HAZARD in the taxonomy the
+# reporting projects use: nothing to repair, and still worth a check, so that
+# the rule cannot drift without this going red.
 #
 # Plus what working through them has FOUND, which carries no R- or D- number
 # because nobody reported it: BI-1, a built-in held as a value, and CE-1 and
@@ -45,7 +51,15 @@ FIXED=0
 # Reports one defect.  $1 the tag, $2 one line saying what it is, $3 'open' or
 # 'fixed', $4 what was seen.
 report () {
-    if [ "$3" = fixed ]; then
+    if [ "$3" = specified ]; then
+        # ⚠️ NEITHER FIXED NOR REPRODUCING, and the third word is not a
+        # softening.  A report may describe behaviour the specification
+        # states, which is a HAZARD in the taxonomy the reporting projects
+        # use: there is nothing to repair, and the check still belongs here
+        # so that the rule cannot drift without this going red.
+        FIXED=$((FIXED + 1))
+        printf '  %-6s SPECIFIED   %s\n' "$1" "$2"
+    elif [ "$3" = fixed ]; then
         FIXED=$((FIXED + 1))
         printf '  %-6s FIXED       %s\n' "$1" "$2"
     else
@@ -590,6 +604,74 @@ EOF
 want_answer CE-2 "a window position never read back, in shroom-slots" "$WORK/ce2.a24" 'true
 true
 true'
+echo
+
+# --------------------------------------------------------------- group 14
+# R-19, R-20, R-21: what running `--test` over every unit found, which is the
+# one check shroom-slots had not been making when a release landed.
+echo "14. What a test run does, and what it says when it fails"
+
+# ⚠️ THE MACHINE COMPILING ITS OWN TEST BLOCKS IS THE CHECK, and nothing here
+# was making it.  `./test.sh vm/Vm.a24` runs the machine's tests under algc,
+# and `vm/conform.sh` runs the corpus, which has no test block in it -- so
+# `algvm --test` was exercised by no gate at all.  R-19 was a segfault in
+# VmEmitter's own survey with no diagnostic, and a collection literal whose
+# last element is a call is what it was: see collector/0008.  Checked over the
+# machine's own sources, which are the largest test blocks in the repository.
+R19=''
+for _unit in vm/Vm.a24 vm/run.a24 compiler/Main.a24; do
+    ( cd "$ROOT" && "$ALGVM" --stop --test "$_unit" ) > "$WORK/r19.log" 2>&1 \
+        || R19="$R19 $_unit(exit $?)"
+done
+if [ -z "$R19" ]; then
+    report R-19 "algvm --test crashes compiling test blocks algc tests clean" fixed ''
+else
+    report R-19 "algvm --test crashes compiling test blocks algc tests clean" open \
+        "compiling the test blocks of$R19 -- and it prints nothing"
+fi
+
+# R-20 is [TST-003] and not a defect: a test run executes the test blocks
+# INSTEAD of the program, so the top-level declarations are evaluated and the
+# statements between them are not.  The ask -- run none of the top level --
+# cannot be granted, because a test body reaches the declarations around it
+# and conformance/0103 requires exactly that.  What is checked is that all
+# three processors still agree about it, since the trap is that a declaration
+# may then be evaluated in a state no run of the program can produce.
+printf 'var N := 1 div 0;\n' > "$WORK/r20decl.a24"
+printf 'var N := 0;\nWriteLn (1 div N);\n' > "$WORK/r20stmt.a24"
+
+_decl_i=$("$ALGC"  --test "$WORK/r20decl.a24" 2>&1 | head -1 || true)
+_decl_v=$("$ALGVM" --test "$WORK/r20decl.a24" 2>&1 | head -1 || true)
+_stmt_i=$("$ALGC"  --test "$WORK/r20stmt.a24" 2>&1 | tail -1 || true)
+_stmt_v=$("$ALGVM" --test "$WORK/r20stmt.a24" 2>&1 | tail -1 || true)
+
+if printf '%s' "$_decl_i" | grep -q 'Division by zero' \
+   && printf '%s' "$_decl_v" | grep -q 'Division by zero' \
+   && printf '%s' "$_stmt_i" | grep -q 'All 0 tests passed' \
+   && printf '%s' "$_stmt_v" | grep -q 'All 0 tests passed'; then
+    report R-20 "--test evaluates the declarations and skips the statements" specified ''
+else
+    report R-20 "--test evaluates the declarations and skips the statements" open \
+        "declaration interpreted '$_decl_i', machine '$_decl_v'; statement interpreted '$_stmt_i', machine '$_stmt_v'"
+fi
+
+# R-21 -- the same question group 9 asks of a plain run, asked of `--test`.
+# It is the mode where the location matters most: the failing statement is a
+# DECLARATION the program itself would never have reached in that state, so
+# there is nothing in the program's behaviour to read it off.  Compiled
+# Algol-24 is excluded, carrying no location at all by decision [ERR-003].
+_t21_plain=$("$ALGC"  "$WORK/r20decl.a24"        2>&1 || true)
+_t21_algc=$("$ALGC"  --test "$WORK/r20decl.a24"  2>&1 || true)
+_t21_vm=$("$ALGVM"   --test "$WORK/r20decl.a24"  2>&1 || true)
+
+if printf '%s' "$_t21_plain" | grep -q 'r20decl.a24:1' \
+   && printf '%s' "$_t21_algc" | grep -q 'r20decl.a24:1' \
+   && printf '%s' "$_t21_vm"   | grep -q 'r20decl.a24:1'; then
+    report R-21 "algc --test drops a location both processors otherwise give" fixed ''
+else
+    report R-21 "algc --test drops a location both processors otherwise give" open \
+        "plain '$(printf '%s' "$_t21_plain" | tr '\n' '/')', --test '$(printf '%s' "$_t21_algc" | tr '\n' '/')', machine '$(printf '%s' "$_t21_vm" | tr '\n' '/')'"
+fi
 echo
 
 

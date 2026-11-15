@@ -106,9 +106,9 @@ static Value i_typelookup(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
-    alg_set_property(v_this, "Scopes", alg_widen(alg_hold(alg_list()), "List"));
-    alg_set_property(v_this, "Types", alg_widen(alg_hold(alg_map()), "Map"));
-    alg_set_property(v_this, "Parents", alg_widen(alg_hold(alg_map()), "Map"));
+    alg_set_property(v_this, "Scopes", alg_widen(alg_hold(alg_hold(alg_list())), "List"));
+    alg_set_property(v_this, "Types", alg_widen(alg_hold(alg_hold(alg_map())), "Map"));
+    alg_set_property(v_this, "Parents", alg_widen(alg_hold(alg_hold(alg_map())), "Map"));
     alg_set_property(v_this, "Inferred", alg_widen(alg_nil(), "TypeLookup"));
     alg_set_property(v_this, "DeclaredTypes", alg_widen(alg_hold(alg_set()), "Set"));
     alg_set_property(v_this, "Generics", alg_widen(alg_nil(), "TypeLookup"));
@@ -195,7 +195,7 @@ static Value m_typelookup_beginscope_0(Value v_this, Value *args, int32_t count)
     alg_root(&v_this, 1);
     alg_root(args, count);
     int32_t rh_1279 = alg_hold_top;
-    (void)(alg_hold((q_0 = alg_hold(alg_property(v_this, "Scopes")), alg_invoke(q_0, "Add", (Value[]){alg_hold(alg_map())}, 1))));
+    (void)(alg_hold((q_0 = alg_hold(alg_property(v_this, "Scopes")), alg_invoke(q_0, "Add", (Value[]){alg_hold(alg_hold(alg_map()))}, 1))));
     alg_hold_top = rh_1279;
     if (alg_truthy(alg_hold(alg_not_equal(alg_property(v_this, "Generics"), alg_nil())))) {
         (void)(alg_hold(alg_invoke(alg_property(v_this, "Generics"), "BeginScope", NULL, 0)));
@@ -247,7 +247,7 @@ Value f_foldedbuiltins(Value **cells, Value *args, int32_t count) {
     alg_hold_top = rh_1281;
     {
         int32_t rt_1282 = alg_root_top;
-        Value loop_7 = alg_iterable(alg_hold(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list(), alg_literal("Array")), alg_literal("AssertEqual")), alg_literal("AssertTrue")), alg_literal("Buffer")), alg_literal("ChDir")), alg_literal("Char")), alg_literal("clock")), alg_literal("Collect")), alg_literal("Copy")), alg_literal("Entries")), alg_literal("ErrorLn")), alg_literal("Fail")), alg_literal("Fields")), alg_literal("FileExists")), alg_literal("Foreign")), alg_literal("GetDir")), alg_literal("Halt")), alg_literal("Invoke")), alg_literal("Member")), alg_literal("New")), alg_literal("SetMember")), alg_literal("Length")), alg_literal("List")), alg_literal("Map")), alg_literal("MkDir")), alg_literal("Ord")), alg_literal("ParamCount")), alg_literal("ParamStr")), alg_literal("Pos")), alg_literal("Pred")), alg_literal("RmDir")), alg_literal("Set")), alg_literal("Stack")), alg_literal("Str")), alg_literal("Succ")), alg_literal("TextFile")), alg_literal("ToLower")), alg_literal("ToUpper")), alg_literal("TypeOf")), alg_literal("Val")), alg_literal("Write")), alg_literal("WriteLn"))));
+        Value loop_7 = alg_iterable(alg_hold(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_hold(alg_list()), alg_literal("Array")), alg_literal("AssertEqual")), alg_literal("AssertTrue")), alg_literal("Buffer")), alg_literal("ChDir")), alg_literal("Char")), alg_literal("clock")), alg_literal("Collect")), alg_literal("Copy")), alg_literal("Entries")), alg_literal("ErrorLn")), alg_literal("Fail")), alg_literal("Fields")), alg_literal("FileExists")), alg_literal("Foreign")), alg_literal("GetDir")), alg_literal("Halt")), alg_literal("Invoke")), alg_literal("Member")), alg_literal("New")), alg_literal("SetMember")), alg_literal("Length")), alg_literal("List")), alg_literal("Map")), alg_literal("MkDir")), alg_literal("Ord")), alg_literal("ParamCount")), alg_literal("ParamStr")), alg_literal("Pos")), alg_literal("Pred")), alg_literal("RmDir")), alg_literal("Set")), alg_literal("Stack")), alg_literal("Str")), alg_literal("Succ")), alg_literal("TextFile")), alg_literal("ToLower")), alg_literal("ToUpper")), alg_literal("TypeOf")), alg_literal("Val")), alg_literal("Write")), alg_literal("WriteLn"))));
         (void)loop_7;
         alg_root(&loop_7, 1);
         for (int32_t at_7 = 0; at_7 < alg_iterable_count(loop_7); at_7++) {
@@ -277,15 +277,15 @@ static Value i_typechecker(Value v_this, Value *args, int32_t count) {
     alg_root(&v_this, 1);
     alg_set_property(v_this, "Lookup", alg_nil());
     alg_set_property(v_this, "CurrentReturn", alg_widen(alg_literal(""), "String"));
-    alg_set_property(v_this, "PrivateMembers", alg_widen(alg_hold(alg_map()), "Map"));
-    alg_set_property(v_this, "PropertyMembers", alg_widen(alg_hold(alg_map()), "Map"));
-    alg_set_property(v_this, "Members", alg_widen(alg_hold(alg_map()), "Map"));
-    alg_set_property(v_this, "BuiltinTypes", alg_widen(alg_hold(alg_map()), "Map"));
-    alg_set_property(v_this, "Overloads", alg_widen(alg_hold(alg_map()), "Map"));
-    alg_set_property(v_this, "Arities", alg_widen(alg_hold(alg_map()), "Map"));
-    alg_set_property(v_this, "Variadics", alg_widen(alg_hold(alg_map()), "Map"));
-    alg_set_property(v_this, "Signatures", alg_widen(alg_hold(alg_list()), "Set"));
-    alg_set_property(v_this, "Warned", alg_widen(alg_hold(alg_list()), "Set"));
+    alg_set_property(v_this, "PrivateMembers", alg_widen(alg_hold(alg_hold(alg_map())), "Map"));
+    alg_set_property(v_this, "PropertyMembers", alg_widen(alg_hold(alg_hold(alg_map())), "Map"));
+    alg_set_property(v_this, "Members", alg_widen(alg_hold(alg_hold(alg_map())), "Map"));
+    alg_set_property(v_this, "BuiltinTypes", alg_widen(alg_hold(alg_hold(alg_map())), "Map"));
+    alg_set_property(v_this, "Overloads", alg_widen(alg_hold(alg_hold(alg_map())), "Map"));
+    alg_set_property(v_this, "Arities", alg_widen(alg_hold(alg_hold(alg_map())), "Map"));
+    alg_set_property(v_this, "Variadics", alg_widen(alg_hold(alg_hold(alg_map())), "Map"));
+    alg_set_property(v_this, "Signatures", alg_widen(alg_hold(alg_hold(alg_list())), "Set"));
+    alg_set_property(v_this, "Warned", alg_widen(alg_hold(alg_hold(alg_list())), "Set"));
     alg_root_top = rt_base;
     return alg_nil();
 }
@@ -305,7 +305,7 @@ static Value m_typechecker_init_0(Value v_this, Value *args, int32_t count) {
     alg_hold_top = rh_1284;
     {
         int32_t rt_1285 = alg_root_top;
-        Value loop_10 = alg_iterable(alg_hold(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list(), alg_literal("List")), alg_literal("Map")), alg_literal("Set")), alg_literal("Stack")), alg_literal("Array"))));
+        Value loop_10 = alg_iterable(alg_hold(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_hold(alg_list()), alg_literal("List")), alg_literal("Map")), alg_literal("Set")), alg_literal("Stack")), alg_literal("Array"))));
         (void)loop_10;
         alg_root(&loop_10, 1);
         for (int32_t at_10 = 0; at_10 < alg_iterable_count(loop_10); at_10++) {
@@ -416,7 +416,7 @@ static Value m_typechecker_init_0(Value v_this, Value *args, int32_t count) {
     alg_hold_top = rh_1284;
     {
         int32_t rt_1288 = alg_root_top;
-        Value loop_11 = alg_iterable(alg_hold(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list(), alg_literal("Length")), alg_literal("Pos")), alg_literal("Copy")), alg_literal("Str")), alg_literal("Array")), alg_literal("List")), alg_literal("Map")), alg_literal("Set")), alg_literal("Stack")), alg_literal("Buffer")), alg_literal("TextFile")), alg_literal("FileExists")), alg_literal("ParamCount")), alg_literal("ParamStr")), alg_literal("Write")), alg_literal("WriteLn")), alg_literal("Ord")), alg_literal("Val")), alg_literal("Char")), alg_literal("clock")), alg_literal("ToUpper")), alg_literal("ToLower")), alg_literal("MkDir")), alg_literal("RmDir")), alg_literal("ChDir")), alg_literal("GetDir")), alg_literal("Entries"))));
+        Value loop_11 = alg_iterable(alg_hold(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_hold(alg_list()), alg_literal("Length")), alg_literal("Pos")), alg_literal("Copy")), alg_literal("Str")), alg_literal("Array")), alg_literal("List")), alg_literal("Map")), alg_literal("Set")), alg_literal("Stack")), alg_literal("Buffer")), alg_literal("TextFile")), alg_literal("FileExists")), alg_literal("ParamCount")), alg_literal("ParamStr")), alg_literal("Write")), alg_literal("WriteLn")), alg_literal("Ord")), alg_literal("Val")), alg_literal("Char")), alg_literal("clock")), alg_literal("ToUpper")), alg_literal("ToLower")), alg_literal("MkDir")), alg_literal("RmDir")), alg_literal("ChDir")), alg_literal("GetDir")), alg_literal("Entries"))));
         (void)loop_11;
         alg_root(&loop_11, 1);
         for (int32_t at_11 = 0; at_11 < alg_iterable_count(loop_11); at_11++) {
@@ -433,7 +433,7 @@ static Value m_typechecker_init_0(Value v_this, Value *args, int32_t count) {
     alg_hold_top = rh_1284;
     {
         int32_t rt_1290 = alg_root_top;
-        Value loop_12 = alg_iterable(alg_hold(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list(), alg_literal("Any")), alg_literal("Boolean")), alg_literal("Integer")), alg_literal("Double")), alg_literal("String")), alg_literal("Char")), alg_literal("List")), alg_literal("Set")), alg_literal("Stack")), alg_literal("Array")), alg_literal("Map")), alg_literal("TextFile")), alg_literal("Buffer")), alg_literal("Pointer")), alg_literal("Byte")), alg_literal("Word")), alg_literal("Short"))));
+        Value loop_12 = alg_iterable(alg_hold(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_hold(alg_list()), alg_literal("Any")), alg_literal("Boolean")), alg_literal("Integer")), alg_literal("Double")), alg_literal("String")), alg_literal("Char")), alg_literal("List")), alg_literal("Set")), alg_literal("Stack")), alg_literal("Array")), alg_literal("Map")), alg_literal("TextFile")), alg_literal("Buffer")), alg_literal("Pointer")), alg_literal("Byte")), alg_literal("Word")), alg_literal("Short"))));
         (void)loop_12;
         alg_root(&loop_12, 1);
         for (int32_t at_12 = 0; at_12 < alg_iterable_count(loop_12); at_12++) {

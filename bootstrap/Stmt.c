@@ -363,7 +363,7 @@ static Value i_objectstmt(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Superclass", alg_nil());
     alg_set_property(v_this, "Methods", alg_nil());
     alg_set_property(v_this, "Fields", alg_nil());
-    alg_set_property(v_this, "PrivateMembers", alg_widen(alg_hold(alg_list()), "List"));
+    alg_set_property(v_this, "PrivateMembers", alg_widen(alg_hold(alg_hold(alg_list())), "List"));
     alg_root_top = rt_base;
     return alg_nil();
 }
@@ -874,8 +874,8 @@ static Value i_functionstmt(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Params", alg_nil());
     alg_set_property(v_this, "Body", alg_nil());
     alg_set_property(v_this, "ReturnType", alg_widen(alg_literal(""), "String"));
-    alg_set_property(v_this, "ParamTypes", alg_widen(alg_hold(alg_list()), "List"));
-    alg_set_property(v_this, "ParamGenerics", alg_widen(alg_hold(alg_list()), "List"));
+    alg_set_property(v_this, "ParamTypes", alg_widen(alg_hold(alg_hold(alg_list())), "List"));
+    alg_set_property(v_this, "ParamGenerics", alg_widen(alg_hold(alg_hold(alg_list())), "List"));
     alg_set_property(v_this, "Symbol", alg_widen(alg_literal(""), "String"));
     alg_set_property(v_this, "Library", alg_widen(alg_literal(""), "String"));
     alg_set_property(v_this, "IsProperty", alg_widen(alg_bool(false), "Boolean"));
@@ -1090,7 +1090,7 @@ static Value i_classstmt(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Superclass", alg_nil());
     alg_set_property(v_this, "Methods", alg_nil());
     alg_set_property(v_this, "Fields", alg_nil());
-    alg_set_property(v_this, "PrivateMembers", alg_widen(alg_hold(alg_list()), "List"));
+    alg_set_property(v_this, "PrivateMembers", alg_widen(alg_hold(alg_hold(alg_list())), "List"));
     alg_root_top = rt_base;
     return alg_nil();
 }
