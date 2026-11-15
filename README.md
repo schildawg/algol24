@@ -154,8 +154,17 @@ reproduces it. `spec/HISTORY.md` holds how the language arrived.
 
 ## Status
 
-**v0.4.1.** The language is **stable, not closed**: it changes only on measured
+**v0.4.2.** The language is **stable, not closed**: it changes only on measured
 demand from a project using it, and the measurement goes in the proposal.
+
+v0.4.2 is **three defects a project found by running its unit tests**, which is
+the one check it had not been making when a release landed. The first was the
+serious one: a collection literal whose last element is a *call* had the
+half-built collection registered with the collector nowhere, so a safe point
+inside that call swept it and the compiled program wrote into released memory.
+Every compiled Algol-24 program could reach it, and the bytecode machine — the
+largest one there is — crashed compiling its own test blocks. Nothing here was
+running `algvm --test`, which is why it was found downstream.
 
 v0.4.1 is **Windows and Linux**, and the language gained nothing. A real
 session on each found what no harness here could: three processors that agreed
