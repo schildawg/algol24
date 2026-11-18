@@ -1,6 +1,6 @@
 # The Algol-24 Programming Language Specification
 
-> **Algol-24 v0.4.2.** Nineteen chapters and three annexes. Every rule is
+> **Algol-24 v0.5.0.** Nineteen chapters and three annexes. Every rule is
 > decided — what the language should do — and every rule is claimed by a case: a
 > program in `conformance/`, a refusal in `refusals/`, or a reproduction in
 > `defects/`. `spec/spec.sh` prints how many there are and checks that each
@@ -14010,6 +14010,7 @@ is a collection — neither answers `Contains`, and only a `Buffer` answers
 | `Length` `IsEmpty` `Text` `Address` | ● | |
 | `PutInt` `GetInt` `Resize` `Free` | ● | |
 | `PutWord` `GetWord` `PutDouble` `GetDouble` | ● | |
+| `GetText` `Load` `Save` | ● | |
 | `Append` | ● | ● |
 | `Eof` `Assign` `Reset` `Rewrite` | | ● |
 | `ReadLn` `Write` `WriteLn` `Flush` | | ● |
@@ -14046,7 +14047,7 @@ end
 var B := Buffer ();
 var F := TextFile ();
 
-// A Buffer's four properties and nine methods.
+// A Buffer's four properties and twelve methods.
 Has ('Buffer', 'Length',  B.Length  = 0);
 Has ('Buffer', 'IsEmpty', B.IsEmpty);
 Has ('Buffer', 'Text',    B.Text = '');
@@ -14060,6 +14061,9 @@ Has ('Buffer', 'PutWord',   Str (B.PutWord)   = '<fn PutWord>');
 Has ('Buffer', 'GetWord',   Str (B.GetWord)   = '<fn GetWord>');
 Has ('Buffer', 'PutDouble', Str (B.PutDouble) = '<fn PutDouble>');
 Has ('Buffer', 'GetDouble', Str (B.GetDouble) = '<fn GetDouble>');
+Has ('Buffer', 'GetText',   Str (B.GetText)   = '<fn GetText>');
+Has ('Buffer', 'Load',      Str (B.Load)      = '<fn Load>');
+Has ('Buffer', 'Save',      Str (B.Save)      = '<fn Save>');
 
 // A TextFile's one property and eleven methods.  Eof needs the file open, so
 // it is asked for after a Rewrite rather than here.
@@ -14123,6 +14127,9 @@ Buffer.PutWord
 Buffer.GetWord
 Buffer.PutDouble
 Buffer.GetDouble
+Buffer.GetText
+Buffer.Load
+Buffer.Save
 TextFile.Assign
 TextFile.Reset
 TextFile.Rewrite
@@ -14154,13 +14161,33 @@ characters: appending `'é'` makes it 2.
 | `PutInt (At, N)` `GetInt (At)` | a signed four-byte little-endian Integer |
 | `PutWord (At, N)` `GetWord (At)` | those four bytes **unsigned**, 0 … 4294967295 |
 | `PutDouble (At, X)` `GetDouble (At)` | an eight-byte little-endian IEEE 754 Double |
+| `GetText (At, Length)` | those `Length` bytes as a String |
 | `Text` | the bytes as a String |
 
 An offset outside the buffer is `Offset I out of range 0..N.`, where `N` is the
 **last offset a value of that width may start at** — `Length - 1` for a byte,
-`Length - 4` for an Integer or a word, and `Length - 8` for a Double. An empty
-Buffer therefore says `0..-1`, and a four-byte one asked for an Integer at 1
-says `0..0`.
+`Length - 4` for an Integer or a word, `Length - 8` for a Double, and
+`Length - N` for `GetText (At, N)`. An empty Buffer therefore says `0..-1`, and
+a four-byte one asked for an Integer at 1 says `0..0`. A negative length is
+`A GetText length cannot be negative.`
+
+**`GetText` is the inverse `Append` never had.** A Buffer takes a value's bytes
+and could not give a span of them back, so a record written into one could be
+read field by field for every type but text — which is the one a file format is
+mostly made of. `GetText (At, 0)` is the empty String, including on an empty
+Buffer.
+
+**And it answers whatever bytes are there, where `Text` refuses a zero byte.**
+That is deliberate rather than an oversight in one of them: a String carries its
+own length and holds a zero byte perfectly well, as [RT-008] says where it
+explains that it was the Buffer in the middle that could not. So the refusal
+belongs to `Text` alone, which every recorded case compares, and a span is
+answered whole.
+
+**`GetText` always answers a `String`, never a `Char`.** A one-byte span is a
+String of one character, so the type of the answer does not depend on the
+length — and the two are equal wherever the text is the same [VAL-010], which
+is what makes that safe to rely on.
 
 `Text` on a Buffer holding a zero byte is `A Buffer holding a zero byte has no
 Text.`
@@ -14274,6 +14301,24 @@ Show ('PutDouble -0.1 round trip', D.GetDouble (0));
 D.PutDouble (0, 12);
 Show ('an Integer widens', D.GetDouble (0));
 
+// GetText cuts a span of bytes out as text, which is what Append could not
+// undo.  A one-byte span is a String of one character and not a Char.
+var T := Buffer ();
+T.Append ('A24B');
+T.Append (Char (0));
+T.Append ('tail');
+Show ('GetText (0, 4)', T.GetText (0, 4));
+Show ('GetText (5, 4)', T.GetText (5, 4));
+Show ('GetText (0, 0)', '[' + T.GetText (0, 0) + ']');
+Show ('a one-byte span is a String', T.GetText (0, 1) is String);
+
+// ... and it answers a zero byte, where Text refuses the whole buffer.
+Show ('a zero byte comes back', Length (T.GetText (4, 1)));
+try WriteLn (T.Text); except on E : String do WriteLn ('  Text: ' + E); end
+
+try WriteLn (T.GetText (6, 4)); except on E : String do WriteLn ('  nine bytes, four at 6: ' + E); end
+try WriteLn (T.GetText (0, -1)); except on E : String do WriteLn ('  a negative length: ' + E); end
+
 // The offset message names the last offset a value of that width may start at:
 // Length - 1 for a byte, Length - 4 for an Integer or a word, Length - 8 for a
 // Double.
@@ -14307,6 +14352,14 @@ GetInt of those bytes = -1
 PutDouble 1.0 bytes = 0, 240, 63
 PutDouble -0.1 round trip = -0.1
 an Integer widens = 12.0
+GetText (0, 4) = A24B
+GetText (5, 4) = tail
+GetText (0, 0) = []
+a one-byte span is a String = true
+a zero byte comes back = 1
+  Text: A Buffer holding a zero byte has no Text.
+  nine bytes, four at 6: Offset 6 out of range 0..5.
+  a negative length: A GetText length cannot be negative.
   empty, a byte: Offset 0 out of range 0..-1.
   four bytes, an Integer at 1: Offset 1 out of range 0..0.
   four bytes, a byte at 9: Offset 9 out of range 0..3.
@@ -14338,6 +14391,109 @@ catch. Contents are left out for a plainer reason: a compiler's Buffer holds
 and `Free` ends them.
 
     conformance  0177-a-buffers-lifetime.a24
+
+**[RT-036]**  A `Buffer` reaches a file **whole**. `Load (Name)` replaces its
+bytes with the named file's, and `Save (Name)` writes its bytes to the named
+file, replacing whatever was there. A name that is not text is
+`A file name must be a String.`, as it is for a `TextFile` [RT-024].
+
+| | |
+| --- | --- |
+| `Load (Name)` | the file's bytes become the Buffer's |
+| `Save (Name)` | the Buffer's bytes become the file's |
+
+A file that cannot be opened is `Load failed: cannot open 'name'.` or
+`Save failed: cannot open 'name'.`, in the voice a `TextFile` uses [RT-024]; a
+read that fails part way through is `Load failed: cannot read 'name'.` and a
+write that does is `Save failed: cannot write 'name'.`
+
+**Bytes, not lines, and not text.** A `TextFile` reads and writes lines of text
+[RT-024], which is the whole of what it is for and leaves a program no way to
+put a byte in a file or take one out — so an image, a record, a sound, a sprite
+sheet could be *held* by this language and never stored by it. These two
+members are that gap closed, and they are on a `Buffer` because a Buffer is
+where bytes live.
+
+**`Load` REPLACES rather than appends**, so loading an empty file empties the
+Buffer. Appending is what `Append` is for, and a member that did both depending
+on what was already there would be the worst of the two.
+
+**The whole file in one call, because a Buffer holds all of it.** A position, a
+record size and a partial read are three pieces of state a Buffer has not got,
+and the program that wants them has `TextFile` for text and the foreign
+function interface for anything else [FUN-014].
+
+**A `Save` reports at the close as well as at the write**, because a buffered
+write succeeds for bytes that never reach the disk. Both failures are
+`cannot write`, since from the program's side they are one fact.
+
+##### conformance/0226-a-buffer-reaches-a-file.a24
+
+```algol24
+// Bytes out and bytes back, including the ones no text form survives.
+var Out := Buffer ();
+
+Out.Append ('A24B');
+Out.Append ('....');
+Out.PutInt (4, 1234567);
+Out.Append (Char (0));
+Out.Append ('tail');
+
+WriteLn ('wrote ' + Str (Out.Length) + ' bytes');
+Out.Save ('t-image.bin');
+
+var Back := Buffer ();
+Back.Load ('t-image.bin');
+
+WriteLn ('read  ' + Str (Back.Length) + ' bytes');
+WriteLn ('magic ' + Back.GetText (0, 4));
+WriteLn ('int   ' + Str (Back.GetInt (4)));
+WriteLn ('zero  ' + Str (Back[8]));
+WriteLn ('tail  ' + Back.GetText (9, 4));
+
+// Load replaces: an empty file empties the Buffer.
+var None := Buffer ();
+None.Save ('t-empty.bin');
+
+Back.Load ('t-empty.bin');
+WriteLn ('after an empty file ' + Str (Back.Length) + ' ' + Str (Back.IsEmpty));
+
+// Save replaces too, rather than appending to what was there.
+Out.Save ('t-image.bin');
+Out.Save ('t-image.bin');
+Back.Load ('t-image.bin');
+WriteLn ('twice saved ' + Str (Back.Length) + ' bytes');
+
+// The refusals.
+try Back.Load ('t-missing.bin');
+except on E : String do WriteLn ('  ' + E); end
+
+try Back.Save ('t-nowhere/t.bin');
+except on E : String do WriteLn ('  ' + E); end
+
+try Back.Load (7);
+except on E : String do WriteLn ('  ' + E); end
+
+// Tidied up through the file member that deletes.
+var Scratch := TextFile ();
+Scratch.Assign ('t-image.bin'); Scratch.Erase ();
+Scratch.Assign ('t-empty.bin'); Scratch.Erase ();
+```
+
+```console
+$ algc conformance/0226-a-buffer-reaches-a-file.a24
+wrote 13 bytes
+read  13 bytes
+magic A24B
+int   1234567
+zero  0
+tail  tail
+after an empty file 0 true
+twice saved 13 bytes
+  Load failed: cannot open 't-missing.bin'.
+  Save failed: cannot open 't-nowhere/t.bin'.
+  A file name must be a String.
+```
 
 **[RT-024]**  A `TextFile` is opened in one of three ways, and every member says
 what it needed when it does not have it:

@@ -8,10 +8,17 @@
 /// So nothing in `compiler/` changes, the VM stays out of the seed in
 /// `bootstrap/`, and a change to an opcode needs no reseed.
 ///
-/// It parses the source itself rather than reading bytecode, because there is
-/// no bytecode file format yet.  When there is, this splits in two along the
-/// line the proposal draws -- `algc --emit` writing it and this reading it --
-/// and the front-end imports below are what goes away.
+/// It reads EITHER, and the file says which: four bytes of magic at the front
+/// mean a bytecode image and anything else is source to compile.  So
+/// `algvm --emit prog.a24 --out=prog.a24b` keeps the compile and
+/// `algvm prog.a24b` skips it, which is the split finished/PROPOSAL-VM.md
+/// draws -- with the emitting half here rather than in `algc`, because
+/// `compiler/VmEmitter.a24` is deliberately not reachable from `Main.a24` and
+/// that is what keeps the machine out of the seed.
+///
+/// The front-end imports stay: one binary that can do both is what lets a
+/// program be run from source while it is being written and from an image
+/// once it is not.
 ///
 /// The order of the imports is Main.a24's order and must stay that way: a
 /// module's functions close over the environment its file was loaded in, so
@@ -48,6 +55,7 @@ uses 'compiler/VmEmitter';
 
 uses OpCode;
 uses Chunk;
+uses Image;
 uses Vm;
 
 /// Reads a whole file as one String.
@@ -221,7 +229,10 @@ end
 /// Every line printed here comes from `compiler/TestReport`, which the
 /// interpreter prints through as well: the format is compared character for
 /// character by 0105 and 0106, so the two cannot be allowed to drift.
-function RunEveryTest (RootFile : String) : Integer;
+/// The table is handed in rather than asked for, because the two ways into a
+/// test run answer it from different places: a compile leaves it in the
+/// emitter, and an image carries it.
+function RunEveryTest (RootFile : String, Found : List) : Integer;
 var
     Files  : List;
     ByFile : Map;
@@ -229,8 +240,6 @@ var
     Failed : Integer;
 
 begin
-    var Found := TestsFound ();
-
     Files  := List ();
     ByFile := Map ();
 
@@ -324,8 +333,13 @@ begin
     WriteLn ('');
     WriteLn ('Usage:');
     WriteLn ('  algvm <file.a24> [args]       run a program');
-    WriteLn ('  algvm --test <file.a24>       run its test blocks');
-    WriteLn ('  algvm --list <file.a24>       disassemble every chunk');
+    WriteLn ('  algvm <file.a24b> [args]      run one already compiled');
+    WriteLn ('  algvm --test <file>           run its test blocks');
+    WriteLn ('  algvm --emit <file.a24> --out=<file.a24b>');
+    WriteLn ('                                compile and write the bytecode out');
+    WriteLn ('  algvm --emit --test <file.a24> --out=<file.a24b>');
+    WriteLn ('                                ... for a test run instead');
+    WriteLn ('  algvm --list <file>           disassemble every chunk');
     WriteLn ('  algvm --time <file.a24>       report what compiling and running cost');
     WriteLn ('  algvm --stop <file.a24>       compile and stop, without running');
     WriteLn ('  algvm --collect N <file>      collect every N instructions, 0 for never');
@@ -334,6 +348,9 @@ begin
     WriteLn ('  algvm --algol-loop <file>     dispatch in Algol-24 rather than through the C loop');
     WriteLn ('  algvm --version               the version');
     WriteLn ('  algvm --help                  this');
+    WriteLn ('');
+    WriteLn ('A file is an image if its first four bytes say so, whatever it is');
+    WriteLn ('called, and one is refused by any build but the one that wrote it.');
     WriteLn ('');
     WriteLn ('Foreign calls are always available, which algc makes a build switch:');
     WriteLn ('a foreign call is a feature of the language, and this binary is built');
@@ -446,11 +463,28 @@ var WantsTests := False;
 /// answer for this binary.
 var PlainLoop := False;
 
+/// Whether to write the compiled program out instead of running it.
+///
+/// Emitting is the compile and nothing else, so it is `--stop` with somewhere
+/// for the answer to go.
+var Emitting := False;
+
+/// Where `--emit` should write, from `--out=`.
+///
+/// Required rather than defaulted, as `algc --compile` requires its own: a
+/// flag that writes a file the caller did not name is a surprise, and the
+/// extension is only a convention here -- the magic is what identifies an
+/// image.
+var OutPath := '';
+
 for var I : Integer := 1; I <= ParamCount (); I := I + 1 do
     if ParamStr (I) = '--list' then Listing := True;
     else if ParamStr (I) = '--test' then WantsTests := True;
     else if ParamStr (I) = '--time' then Timing := True;
     else if ParamStr (I) = '--stop' then Stopping := True;
+    else if ParamStr (I) = '--emit' then Emitting := True;
+    else if Copy (ParamStr (I), 0, 6) = '--out=' then
+        OutPath := Copy (ParamStr (I), 6, Length (ParamStr (I)) - 6);
     else if ParamStr (I) = '--collect' then WantsEvery := True;
     else if ParamStr (I) = '--trace' then WantsTrace := True;
     else if ParamStr (I) = '--watch' then WantsWatch := True;
@@ -484,21 +518,118 @@ for var I : Integer := 1; I <= ParamCount (); I := I + 1 do
         Given.Add (ParamStr (I));
     end
 
-// Asked BEFORE compiling: the survey has to claim a slot for every test body
-// it is going to bind, and the main block has to be left out of the script.
-if WantsTests then
+// Asked before the file is opened for either purpose, so a missing program
+// says so once rather than through whichever reader happened to try first.
+if not FileExists (SourcePath) then
 begin
-    WantTests (SourcePath);
-    SetTesting (True);
+    ErrorLn ('algvm: cannot open ' + SourcePath);
+    Halt (2);
 end
 
-// BEFORE the chunk is built, because building it parses -- and before
-// SetArguments below, which replaces what ParamStr (0) answers.  The machine
-// is a second binary, so it asks the same question of its own path that algc
-// asks of its.
-SetModuleFolders (LibraryFolders ());
+// WHICH KIND OF FILE THIS IS, decided by its first four bytes and not by its
+// name.  The whole file is read to ask, which costs a source file one fread it
+// would otherwise not pay and saves an image from being read twice.
+var FromImage := IsAnImage (SourcePath);
 
-var Program := ChunkOf (SourceOf (SourcePath), SourcePath);
+if Emitting and FromImage then
+begin
+    ErrorLn ('That is already a bytecode image.  Emit from the source.');
+    Halt (2);
+end
+
+if Emitting and OutPath = '' then
+begin
+    ErrorLn ('--emit needs somewhere to write: --out=<file>.');
+    Halt (2);
+end
+
+/// The program, however it was arrived at.
+var Program : Chunk := Nil;
+
+/// The test bodies to call, from the compile or from the image.
+var Tests := [];
+
+/// The path a diagnostic should name as the program's root.
+///
+/// The SOURCE either way, which is why an image carries it: a failing test
+/// reports its root file, and an image naming itself there would make the two
+/// reports differ over a path rather than over a test.
+var RootPath := SourcePath;
+
+if FromImage then
+begin
+    var At := clock ();
+
+    // Caught rather than left to escape, because a stale image is a thing to
+    // be told plainly: `Uncaught:` in front of it would read as the program
+    // having failed, where the program has not started.
+    try
+        Program := ImageProgram (VERSION);
+    except
+        on E : String do
+        begin
+            ErrorLn (E);
+            Halt (2);
+        end
+    end
+
+    Took ('load   ', At);
+
+    // THE TWO MODES ARE TWO IMAGES, because `--test` changes what is compiled
+    // rather than what is run: a unit's bare statements are left out and its
+    // test bodies are put in [TST-003].  So the mode the image was emitted
+    // for has to be the mode it is asked for.
+    if WantsTests and not ImageForTests () then
+    begin
+        ErrorLn ('This image was emitted to run, not to test.'
+               + '  Re-emit it with --test.');
+        Halt (2);
+    end
+
+    if ImageForTests () and not WantsTests then
+    begin
+        ErrorLn ('This image was emitted to test.  Run it with --test.');
+        Halt (2);
+    end
+
+    if WantsTests then SetTesting (True);
+
+    Tests    := ImageTests ();
+    RootPath := ImageSource ();
+end
+else
+begin
+    // Asked BEFORE compiling: the survey has to claim a slot for every test
+    // body it is going to bind, and the main block has to be left out of the
+    // script.
+    if WantsTests then
+    begin
+        WantTests (SourcePath);
+        SetTesting (True);
+    end
+
+    // BEFORE the chunk is built, because building it parses -- and before
+    // SetArguments below, which replaces what ParamStr (0) answers.  The
+    // machine is a second binary, so it asks the same question of its own path
+    // that algc asks of its.
+    SetModuleFolders (LibraryFolders ());
+
+    Program := ChunkOf (SourceOf (SourcePath), SourcePath);
+    Tests   := TestsFound ();
+end
+
+// THE COMPILE KEPT, which is the whole of what an image is for: starting the
+// Dew Drop Inn costs 3.3 s of front end on a laptop and about 13 on a phone,
+// and the dispatch loop sees none of it.
+if Emitting then
+begin
+    var At := clock ();
+
+    WriteImage (Program, OutPath, VERSION, SourcePath, WantsTests, Tests);
+
+    Took ('write  ', At);
+    Halt (0);
+end
 
 // What the PROGRAM sees, and not what this driver was given: run as
 // `algvm prog.a24 a b` a program must find ParamCount () = 2 and ParamStr (0)
@@ -704,4 +835,4 @@ end
 // 70 and not the count, which is the status a failing test run exits with
 // [TST-013] and what the other two processors answer.
 if WantsTests then
-    if RunEveryTest (SourcePath) > 0 then Halt (70);
+    if RunEveryTest (RootPath, Tests) > 0 then Halt (70);

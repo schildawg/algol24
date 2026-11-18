@@ -16,11 +16,19 @@ an old thing, when the old-looking surface is the deliberate part and the
 capability behind it is the point. Pascal may be named as the *syntax's*
 lineage, never as the language's identity.
 
-**v0.4.2.** The language is **stable, not closed**: it changes only on measured
+**v0.5.0.** The language is **stable, not closed**: it changes only on measured
 demand from a project using it, and the measurement goes in the proposal. That
 is the whole policy, and it replaces the sentence this file used to carry about
 the language being done — which had to be rewritten at every release that
 disproved it.
+
+v0.5.0 is **a compiled program as a file**, and the measured demand is the
+clearest this policy has had: `shroom-slots` spends about **3.4 s** compiling the
+Dew Drop Inn on a laptop and about **13 s** on a Pixel Fold, none of it in the
+dispatch loop. `algvm --emit` writes the bytecode and `algvm` loads it in
+**14 ms**. The language's own part of it is three members on a `Buffer` —
+`Load`, `Save` and `GetText` — because bytes could be held and not stored.
+`finished/PROPOSAL-BYTECODE-IMAGE.md`.
 
 v0.2.0 is the **bytecode machine** — a third processor, `algvm`, beside the
 interpreter and the compiled back end — with a **precise garbage collector**
@@ -1917,6 +1925,22 @@ the released body is never handed back at its own size class, which is case
   the comparisons passed. **That one no longer bites**: text compares as text
   [VAL-010].
 
+  ⚠️ **A BUFFER REACHES A FILE WHOLE, and a byte cannot be APPENDED**
+  [RT-036], [RT-022]. `Load (Name)` replaces its bytes with the file's and
+  `Save (Name)` writes them out — the whole file either way, because a Buffer
+  holds all of one. `GetText (At, Length)` cuts a span of bytes out as text,
+  which is the inverse `Append` never had, and it answers a zero byte where
+  `Text` refuses the whole buffer.
+
+  ⚠️ **`Append` TAKES A VALUE'S TEXT AND NOT ITS BYTES**, so `Char (200)`
+  appends the TWO bytes of its UTF-8 and there is no way to append one
+  arbitrary byte at all. A fixed-width field is written by reserving that many
+  ASCII characters and overwriting them —
+  `var At := Out.Length; Out.Append ('....'); Out.PutInt (At, N);` — which is
+  the idiom `vm/Image.a24` is built out of. The same trick measures a String's
+  **byte** length, which is what a reader has to be told and what `Length`
+  does not answer: append it and take the difference.
+
   ⚠️ **`ClassNameOf` is a METHOD** on TypeChecker and on Interpreter, not a
   built-in. A third walker needs its own; it is `Node.ClassName` in a `try`.
 
@@ -2110,6 +2134,106 @@ the released body is never handed back at its own size class, which is case
   ⚠️ **The cost is that giving C a stable name to call FREEZES the
   `Value **cells, Value *args, int32_t count` calling convention**, which was
   private before this and has changed before.
+
+## The bytecode image
+
+**A program can be written out as bytecode and loaded instead of compiled.**
+`algvm --emit prog.a24 --out=prog.a24b` writes one and `algvm prog.a24b` runs
+it; `vm/Image.a24` is the format and `./vm/image.sh` is the gate.
+`finished/PROPOSAL-BYTECODE-IMAGE.md` has the design and the measurements.
+
+**The compile is what it saves, and the compile is nearly all of the
+start-up.** The Dew Drop Inn: scan 76 ms, **parse 1,731**, resolve 67, check
+104, **emit 1,399** — about 3.4 s before the machine runs one instruction, and
+about 13 s on a Pixel Fold. The image is 554 KB, written in 32 ms and **loaded
+in 14**, so the process goes from 3.4 s to 0.02.
+
+⚠️ **THE FILE SAYS WHICH IT IS, not its name.** The first four bytes are
+`A24B` for an image and anything else is source, so `.a24b` is a convention
+and `algvm anything` works either way. `IsAnImage` reads the whole file to
+ask, which costs a source run one `fread` and saves an image from being read
+twice.
+
+⚠️ **AN IMAGE IS NOT A SEED AND IS REFUSED BY ANY OTHER BUILD.** An opcode's
+NUMBER is not interface — this file's own advice for adding one is to append it
+above `OP_COUNT` and renumber nothing — so the same bytes mean different
+instructions in two builds. The release that wrote an image is in its header
+and a mismatch says *This image was written by algvm X and this is algvm Y.
+Re-emit it.* That answers `finished/PROPOSAL-VM.md`'s open question 3 the other
+way from committing one.
+
+⚠️ **THE FORMAT VERSION IS NOT THE RELEASE, and they answer different
+questions.** The release says whether the BYTECODE is this machine's; the
+format version says whether the WRAPPER around it is. A reader that could not
+tell them apart would report an encoding it cannot read as a stale program.
+
+⚠️ **`--test` IS A SECOND IMAGE AND CANNOT BE THE SAME ONE** [TST-003]. Under
+`--test` a unit's bare statements are not compiled and its test bodies are, so
+what is in the chunk differs — `--emit --test` writes a test image and asking
+for the wrong mode is refused by name. Worth the second artifact for R-19's
+reason: nothing ran `algvm --test` until a crash in the machine's own emitter
+was found downstream, and a three-second wait per run is part of why.
+`lobby.a24`'s 151 tests run identically from an image and 2.5 s faster.
+
+⚠️ **THE IMAGE CARRIES THE SOURCE'S PATH so that a failing test names it.** A
+test report names its ROOT file, and an image naming itself there would make
+the two reports differ over a path rather than over a test. Found by reading
+the reports rather than by anything going red — every test passed either way.
+
+⚠️ **A BACK-REFERENCE IS WHAT KEEPS THE OBJECT GRAPH'S SHAPE** rather than
+merely its contents. A built-in held as a value is ONE value per name —
+`Length = Length` is true and these compare by identity [VAL-011] — so a fresh
+`VmBuiltin` per constant would answer false where the compiler's interning
+answers true. Writer and reader keep the same list of objects in the order
+first seen, so an index means the same object on both sides without being in
+the file. A **List** constant is written out every time instead, because no
+program can reach one: they are a named call's argument names and a subrange's
+bounds, read by the machine alone.
+
+⚠️ **AN INTEGER IS UNBOUNDED, so no fixed field holds every one** [LEX-018].
+One past four bytes goes as its decimal digits and is rebuilt by arithmetic —
+`Val` would answer a Double [RT-009] and round it.
+
+⚠️ **`Count` BYTES OF CODE AND NOT `Code.Length`.** A chunk's Buffer is longer
+than its instructions, the slack being what `Write` appends into, so writing
+all of it would put the last doubling's leftovers between one chunk and the
+next. There is a unit test on exactly that: the round trip would otherwise
+succeed and the file would simply be bigger than the program.
+
+⚠️ **A CHUNK OF NO CODE STILL NEEDS A BYTE.** `Buffer (0)` has no bytes at all
+and the C dispatch loop takes their address, so an `external` declaration's
+empty body is given one byte it never reads.
+
+⚠️ **NOTHING IS WRITTEN FOR CLASSES, ENUMERATIONS OR SUBRANGES**, and that is
+the machine's existing design rather than a shortcut: a class is built at run
+time by `OP_CLASS`, `OP_METHOD` and `OP_FIELD`, an enumeration by `OP_ENUM`,
+and a subrange by `OP_SUBRANGE`. `vm/Vm.a24` already says that is what keeps a
+chunk self-describing, and this is the first thing to depend on it.
+
+⚠️ **`./vm/image.sh`'S ORACLE IS THE MACHINE ITSELF, not the fixtures.** The
+question is whether a program loaded from a file answers what the same program
+compiled answers, so each case is run both ways and compared. The fixtures are
+the wrong oracle twice over: a case the emitter refuses by name has no recorded
+output, and a case whose fixture records a build without foreign calls
+describes neither run — both of which `vm/conform.sh` has to work around.
+Currently **222 identical to the compile, 63 refused before emitting, 0
+diverged**.
+
+⚠️ **A CASE REFUSED BEFORE EMITTING IS STILL COMPARED**: the program never got
+as far as an image, so what is checked is that `--emit` refuses it exactly as a
+run does. And the script **builds its own machine**, because a stale one passes
+this check perfectly — it would write an image and read it back with the same
+wrong opcodes.
+
+⚠️ **WHAT IT CANNOT CHECK is a program printing its own name.** `ParamStr (0)`
+is the image's path where a compiled run answers the source's [RT-013]. Two
+corpus cases reach for it and both ask only whether it is non-empty, so nothing
+had to be rendered away — a case that printed it would need the treatment
+`render()` gives a `[WARN]`.
+
+⚠️ **NOTHING CHECKS THAT AN IMAGE IS NEWER THAN ITS SOURCE**, because the
+language cannot ask a file its age. So a stale image runs stale code until it
+is re-emitted, which is a hazard the format cannot close on its own.
 
 ## The collector
 
@@ -2520,6 +2644,20 @@ bootstrap/algc --compile --out=DIR <file.a24>   # emit C into DIR (must already 
 bootstrap/algc --compile --test --out=DIR <f>   # emit the tests plus a runner
 ```
 
+And the machine, which keeps the compile rather than repeating it:
+
+```sh
+vm/algvm <file.a24>                             # compile and run
+vm/algvm --emit <file.a24> --out=<file.a24b>    # compile and write the bytecode
+vm/algvm <file.a24b>                            # load it and run -- 239x faster to start
+vm/algvm --emit --test <f.a24> --out=<f.a24b>   # a TEST image, which is a different one
+```
+
+⚠️ **`algc` HAS NO `--emit` AND MUST NOT GROW ONE.**
+`compiler/VmEmitter.a24` is deliberately unreachable from `Main.a24`, which is
+what keeps the machine out of the seed in `bootstrap/` — so the emitting half
+of the image lives in the machine's own driver, beside the reading half.
+
 The emitted directory **is** self-contained: `--compile` copies `algol.c` and
 `algol.h` in beside the generated files, so `cc -std=c11 -O2 -o DIR/prog DIR/*.c`
 is the whole build. `RuntimeFolder` in `Main.a24` looks in three places — beside
@@ -2551,13 +2689,20 @@ All of them must pass. They are the definition of done.
 ./defects.sh       # every defect a project using the language reported
 ```
 
-And the machine's three, which `test.sh`'s default root does not reach:
+And the machine's, which `test.sh`'s default root does not reach:
 
 ```sh
-./test.sh vm/Vm.a24   # the machine's own tests
-./vm/conform.sh       # the corpus on the machine, both corpora
-./vm/reference.sh     # every opcode entry agrees with OpCode.a24
+./test.sh vm/Vm.a24     # the machine's own tests
+./test.sh vm/Image.a24  # the bytecode image's own tests
+./vm/conform.sh         # the corpus on the machine, both corpora
+./vm/image.sh           # the corpus from an image, against the compile
+./vm/reference.sh       # every opcode entry agrees with OpCode.a24
 ```
+
+⚠️ **`vm/Image.a24` IS NOT REACHED BY `./test.sh vm/Vm.a24` EITHER.** It is
+imported by `vm/run.a24` and not by `Vm.a24`, so its tests need naming the way
+the machine's do — the same trap one level along, and the reason the list above
+is no longer "the machine's three".
 
 ⚠️ **EVERY SCRIPT HERE IS sh AND awk, AND THAT IS A RULE RATHER THAN A
 HABIT.** A C compiler is the only thing this repository needs to build itself,
@@ -2799,6 +2944,15 @@ anonymous union) because the checker is gradual and most expressions have no
 known C type at emit time. Method and property access dispatch at run time
 through `alg_invoke` / `alg_property`; overloads select on the whole signature,
 not arity. Exceptions are `setjmp`/`longjmp` over a frame stack.
+
+⚠️ **A LARGE LOCAL IN A RUNTIME ENTRY POINT IS PAID BY EVERY NESTED CALL,
+whether or not that call wanted it.** `Buffer.Load` was first written reading
+into a `char block[65536]` and appending, which put a 64 KB frame on
+`buffer_method` — a function generated code calls for EVERY member of a Buffer
+— so the emitter's own recursion overflowed the stack and `algc` **segfaulted
+compiling itself**, with exit 139 and nothing else to go on. It reads straight
+into the Buffer now and keeps no block of its own. The three places this could
+bite again are `buffer_method`, `file_method` and `alg_invoke`.
 
 ⚠️ **A collection literal above a hundred elements is emitted as a helper
 function**, not as nested calls, because `cc` gives up at 256 bracket levels.

@@ -154,8 +154,27 @@ reproduces it. `spec/HISTORY.md` holds how the language arrived.
 
 ## Status
 
-**v0.4.2.** The language is **stable, not closed**: it changes only on measured
+**v0.5.0.** The language is **stable, not closed**: it changes only on measured
 demand from a project using it, and the measurement goes in the proposal.
+
+v0.5.0 is **a compiled program as a file**. A game that spends about 3.4 seconds
+compiling itself on a laptop and about 13 on a phone now writes its bytecode
+out once — `algvm --emit game.a24 --out=game.a24b` — and starts from it in
+**14 milliseconds**. None of that time was ever the dispatch loop: scanning,
+parsing, resolving, checking and emitting are all finished before the machine
+runs an instruction, and an image is that work kept. A file says which it is by
+its first four bytes rather than by its name, and is refused by any build but
+the one that wrote it, because an opcode's number was never a promise.
+
+The language's own part of it is three members on a `Buffer`: `Load`, `Save`
+and `GetText`. Bytes could be *held* by this language and not stored — a
+`TextFile` reads and writes lines of text, and a buffer holding a zero byte has
+no text at all — so an image, a record, a sound or a sprite sheet needed C to
+reach a file. Two projects had already written that C.
+
+And the compiler's Homebrew formula now carries the runtime library, as the
+machine's already did. Installing `algol24` alone gave you a language with
+nothing to write programs against.
 
 v0.4.2 is **three defects a project found by running its unit tests**, which is
 the one check it had not been making when a release landed. The first was the

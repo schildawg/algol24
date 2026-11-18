@@ -208,28 +208,46 @@ static Value m_objbuffer_get_1_token(Value v_this, Value *args, int32_t count) {
         return ret_18;
     }
     alg_hold_top = rh_213;
-    if (alg_truthy(alg_hold(alg_equal(v_member, alg_literal("resize"))))) {
-        Value ret_19 = alg_hold(alg_new(k_buffermethod, (Value[]){v_this, v_thename, alg_int(1)}, 3));
+    if (alg_truthy(alg_hold(alg_equal(v_member, alg_literal("gettext"))))) {
+        Value ret_19 = alg_hold(alg_new(k_buffermethod, (Value[]){v_this, v_thename, alg_int(2)}, 3));
         alg_root_top = rt_base;
         return ret_19;
     }
     alg_hold_top = rh_213;
-    if (alg_truthy(alg_hold(alg_equal(v_member, alg_literal("free"))))) {
-        Value ret_20 = alg_hold(alg_new(k_buffermethod, (Value[]){v_this, v_thename, alg_int(0)}, 3));
+    if (alg_truthy(alg_hold(alg_equal(v_member, alg_literal("load"))))) {
+        Value ret_20 = alg_hold(alg_new(k_buffermethod, (Value[]){v_this, v_thename, alg_int(1)}, 3));
         alg_root_top = rt_base;
         return ret_20;
     }
     alg_hold_top = rh_213;
+    if (alg_truthy(alg_hold(alg_equal(v_member, alg_literal("save"))))) {
+        Value ret_21 = alg_hold(alg_new(k_buffermethod, (Value[]){v_this, v_thename, alg_int(1)}, 3));
+        alg_root_top = rt_base;
+        return ret_21;
+    }
+    alg_hold_top = rh_213;
+    if (alg_truthy(alg_hold(alg_equal(v_member, alg_literal("resize"))))) {
+        Value ret_22 = alg_hold(alg_new(k_buffermethod, (Value[]){v_this, v_thename, alg_int(1)}, 3));
+        alg_root_top = rt_base;
+        return ret_22;
+    }
+    alg_hold_top = rh_213;
+    if (alg_truthy(alg_hold(alg_equal(v_member, alg_literal("free"))))) {
+        Value ret_23 = alg_hold(alg_new(k_buffermethod, (Value[]){v_this, v_thename, alg_int(0)}, 3));
+        alg_root_top = rt_base;
+        return ret_23;
+    }
+    alg_hold_top = rh_213;
     alg_raise(alg_hold(alg_add(alg_hold(alg_add(alg_literal("Undefined property '"), alg_hold(alg_str(alg_hold(alg_property(v_thename, "Lexeme")))))), alg_literal("'."))));
     alg_hold_top = rh_213;
-    Value ret_21 = alg_nil();
+    Value ret_24 = alg_nil();
     alg_root_top = rt_base;
-    return ret_21;
+    return ret_24;
 }
 
 static Value m_objbuffer_invoke_2_string_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value q_0, q_1, q_2, q_3, q_4, q_5, q_6, q_7, q_8, q_9, q_10;
+    Value q_0, q_1, q_2, q_3, q_4, q_5, q_6, q_7, q_8, q_9, q_10, q_11, q_12, q_13, q_14;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
@@ -241,64 +259,82 @@ static Value m_objbuffer_invoke_2_string_list(Value v_this, Value *args, int32_t
     alg_root(&v_arguments, 1);
     int32_t rh_214 = alg_hold_top;
     if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("append"))))) {
-        Value ret_22 = alg_hold((q_0 = alg_hold(alg_property(v_this, "Handle")), alg_invoke(q_0, "Append", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
-        alg_root_top = rt_base;
-        return ret_22;
-    }
-    alg_hold_top = rh_214;
-    if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("putint"))))) {
-        Value ret_23 = alg_hold((q_1 = alg_hold(alg_property(v_this, "Handle")), q_2 = alg_hold(alg_subscript_get(v_arguments, alg_int(0))), alg_invoke(q_1, "PutInt", (Value[]){q_2, alg_hold(alg_subscript_get(v_arguments, alg_int(1)))}, 2)));
-        alg_root_top = rt_base;
-        return ret_23;
-    }
-    alg_hold_top = rh_214;
-    if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("getint"))))) {
-        Value ret_24 = alg_hold((q_3 = alg_hold(alg_property(v_this, "Handle")), alg_invoke(q_3, "GetInt", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
-        alg_root_top = rt_base;
-        return ret_24;
-    }
-    alg_hold_top = rh_214;
-    if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("putword"))))) {
-        Value ret_25 = alg_hold((q_4 = alg_hold(alg_property(v_this, "Handle")), q_5 = alg_hold(alg_subscript_get(v_arguments, alg_int(0))), alg_invoke(q_4, "PutWord", (Value[]){q_5, alg_hold(alg_subscript_get(v_arguments, alg_int(1)))}, 2)));
+        Value ret_25 = alg_hold((q_0 = alg_hold(alg_property(v_this, "Handle")), alg_invoke(q_0, "Append", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
         alg_root_top = rt_base;
         return ret_25;
     }
     alg_hold_top = rh_214;
-    if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("getword"))))) {
-        Value ret_26 = alg_hold((q_6 = alg_hold(alg_property(v_this, "Handle")), alg_invoke(q_6, "GetWord", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
+    if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("putint"))))) {
+        Value ret_26 = alg_hold((q_1 = alg_hold(alg_property(v_this, "Handle")), q_2 = alg_hold(alg_subscript_get(v_arguments, alg_int(0))), alg_invoke(q_1, "PutInt", (Value[]){q_2, alg_hold(alg_subscript_get(v_arguments, alg_int(1)))}, 2)));
         alg_root_top = rt_base;
         return ret_26;
     }
     alg_hold_top = rh_214;
-    if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("putdouble"))))) {
-        Value ret_27 = alg_hold((q_7 = alg_hold(alg_property(v_this, "Handle")), q_8 = alg_hold(alg_subscript_get(v_arguments, alg_int(0))), alg_invoke(q_7, "PutDouble", (Value[]){q_8, alg_hold(alg_subscript_get(v_arguments, alg_int(1)))}, 2)));
+    if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("getint"))))) {
+        Value ret_27 = alg_hold((q_3 = alg_hold(alg_property(v_this, "Handle")), alg_invoke(q_3, "GetInt", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
         alg_root_top = rt_base;
         return ret_27;
     }
     alg_hold_top = rh_214;
-    if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("getdouble"))))) {
-        Value ret_28 = alg_hold((q_9 = alg_hold(alg_property(v_this, "Handle")), alg_invoke(q_9, "GetDouble", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
+    if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("putword"))))) {
+        Value ret_28 = alg_hold((q_4 = alg_hold(alg_property(v_this, "Handle")), q_5 = alg_hold(alg_subscript_get(v_arguments, alg_int(0))), alg_invoke(q_4, "PutWord", (Value[]){q_5, alg_hold(alg_subscript_get(v_arguments, alg_int(1)))}, 2)));
         alg_root_top = rt_base;
         return ret_28;
     }
     alg_hold_top = rh_214;
-    if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("resize"))))) {
-        Value ret_29 = alg_hold((q_10 = alg_hold(alg_property(v_this, "Handle")), alg_invoke(q_10, "Resize", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
+    if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("getword"))))) {
+        Value ret_29 = alg_hold((q_6 = alg_hold(alg_property(v_this, "Handle")), alg_invoke(q_6, "GetWord", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
         alg_root_top = rt_base;
         return ret_29;
     }
     alg_hold_top = rh_214;
-    if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("free"))))) {
-        Value ret_30 = alg_hold(alg_invoke(alg_property(v_this, "Handle"), "Free", NULL, 0));
+    if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("putdouble"))))) {
+        Value ret_30 = alg_hold((q_7 = alg_hold(alg_property(v_this, "Handle")), q_8 = alg_hold(alg_subscript_get(v_arguments, alg_int(0))), alg_invoke(q_7, "PutDouble", (Value[]){q_8, alg_hold(alg_subscript_get(v_arguments, alg_int(1)))}, 2)));
         alg_root_top = rt_base;
         return ret_30;
     }
     alg_hold_top = rh_214;
+    if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("getdouble"))))) {
+        Value ret_31 = alg_hold((q_9 = alg_hold(alg_property(v_this, "Handle")), alg_invoke(q_9, "GetDouble", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
+        alg_root_top = rt_base;
+        return ret_31;
+    }
+    alg_hold_top = rh_214;
+    if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("gettext"))))) {
+        Value ret_32 = alg_hold((q_10 = alg_hold(alg_property(v_this, "Handle")), q_11 = alg_hold(alg_subscript_get(v_arguments, alg_int(0))), alg_invoke(q_10, "GetText", (Value[]){q_11, alg_hold(alg_subscript_get(v_arguments, alg_int(1)))}, 2)));
+        alg_root_top = rt_base;
+        return ret_32;
+    }
+    alg_hold_top = rh_214;
+    if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("load"))))) {
+        Value ret_33 = alg_hold((q_12 = alg_hold(alg_property(v_this, "Handle")), alg_invoke(q_12, "Load", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
+        alg_root_top = rt_base;
+        return ret_33;
+    }
+    alg_hold_top = rh_214;
+    if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("save"))))) {
+        Value ret_34 = alg_hold((q_13 = alg_hold(alg_property(v_this, "Handle")), alg_invoke(q_13, "Save", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
+        alg_root_top = rt_base;
+        return ret_34;
+    }
+    alg_hold_top = rh_214;
+    if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("resize"))))) {
+        Value ret_35 = alg_hold((q_14 = alg_hold(alg_property(v_this, "Handle")), alg_invoke(q_14, "Resize", (Value[]){alg_hold(alg_subscript_get(v_arguments, alg_int(0)))}, 1)));
+        alg_root_top = rt_base;
+        return ret_35;
+    }
+    alg_hold_top = rh_214;
+    if (alg_truthy(alg_hold(alg_equal(v_name, alg_literal("free"))))) {
+        Value ret_36 = alg_hold(alg_invoke(alg_property(v_this, "Handle"), "Free", NULL, 0));
+        alg_root_top = rt_base;
+        return ret_36;
+    }
+    alg_hold_top = rh_214;
     alg_raise(alg_hold(alg_add(alg_hold(alg_add(alg_literal("Undefined method '"), v_name)), alg_literal("'."))));
     alg_hold_top = rh_214;
-    Value ret_31 = alg_nil();
+    Value ret_37 = alg_nil();
     alg_root_top = rt_base;
-    return ret_31;
+    return ret_37;
 }
 
 static Value m_objbuffer_at_1(Value v_this, Value *args, int32_t count) {
@@ -310,13 +346,13 @@ static Value m_objbuffer_at_1(Value v_this, Value *args, int32_t count) {
     (void)v_index;
     alg_root(&v_index, 1);
     int32_t rh_215 = alg_hold_top;
-    Value ret_32 = alg_hold(alg_subscript_get(alg_property(v_this, "Handle"), v_index));
+    Value ret_38 = alg_hold(alg_subscript_get(alg_property(v_this, "Handle"), v_index));
     alg_root_top = rt_base;
-    return ret_32;
+    return ret_38;
     alg_hold_top = rh_215;
-    Value ret_33 = alg_nil();
+    Value ret_39 = alg_nil();
     alg_root_top = rt_base;
-    return ret_33;
+    return ret_39;
 }
 
 static Value m_objbuffer_putat_2(Value v_this, Value *args, int32_t count) {
@@ -333,13 +369,13 @@ static Value m_objbuffer_putat_2(Value v_this, Value *args, int32_t count) {
     int32_t rh_216 = alg_hold_top;
     (void)(alg_hold(alg_subscript_set(alg_property(v_this, "Handle"), v_index, v_value)));
     alg_hold_top = rh_216;
-    Value ret_34 = v_value;
+    Value ret_40 = v_value;
     alg_root_top = rt_base;
-    return ret_34;
+    return ret_40;
     alg_hold_top = rh_216;
-    Value ret_35 = alg_nil();
+    Value ret_41 = alg_nil();
     alg_root_top = rt_base;
-    return ret_35;
+    return ret_41;
 }
 
 static Value m_objbuffer_tostring_0(Value v_this, Value *args, int32_t count) {
@@ -348,13 +384,13 @@ static Value m_objbuffer_tostring_0(Value v_this, Value *args, int32_t count) {
     alg_root(&v_this, 1);
     alg_root(args, count);
     int32_t rh_217 = alg_hold_top;
-    Value ret_36 = alg_hold(alg_str(alg_property(v_this, "Handle")));
+    Value ret_42 = alg_hold(alg_str(alg_property(v_this, "Handle")));
     alg_root_top = rt_base;
-    return ret_36;
+    return ret_42;
     alg_hold_top = rh_217;
-    Value ret_37 = alg_nil();
+    Value ret_43 = alg_nil();
     alg_root_top = rt_base;
-    return ret_37;
+    return ret_43;
 }
 
 static Value *roots_ObjBuffer[] = {

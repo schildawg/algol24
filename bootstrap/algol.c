@@ -3,7 +3,7 @@
 /* The header this body was written against.  See ALG_RUNTIME_VERSION there for
    why a mismatched pair is worth one line of diagnostic rather than twenty of
    symptom. */
-_Static_assert (ALG_RUNTIME_VERSION == 402,
+_Static_assert (ALG_RUNTIME_VERSION == 500,
                 "algol.c and algol.h are from different releases");
 
 #include <math.h>
@@ -3839,6 +3839,44 @@ static double buffer_get_double(ObjBuffer *buffer, size_t at) {
     return value;
 }
 
+/* ⚠️ READ STRAIGHT INTO THE BUFFER, and keep no block of one's own.  The first
+   version of this read into a `char block[65536]` and appended, which put a 64
+   KB frame on `buffer_method` -- a function generated code calls for EVERY
+   member of a Buffer, so the emitter's own recursion overflowed the stack and
+   `algc` segfaulted compiling itself.  A large local in a runtime entry point
+   is paid by every nested call, whether or not that call is the one that
+   wanted it.
+
+   The file's size is asked for so a regular file is one realloc and one read,
+   and the loop is still what copies: `ftell` answers nothing useful for a pipe
+   and a file may grow between the two calls. */
+static void buffer_read_all(ObjBuffer *buffer, FILE *handle) {
+    size_t room = 65536;
+
+    buffer->length = 0;
+
+    if (fseek(handle, 0, SEEK_END) == 0) {
+        long size = ftell(handle);
+
+        if (size > 0) room = (size_t)size;
+        rewind(handle);
+    }
+
+    buffer_reserve(buffer, room);
+
+    for (;;) {
+        if (buffer->length == buffer->capacity)
+            buffer_reserve(buffer, buffer->capacity * 2);
+
+        size_t got = fread(buffer->bytes + buffer->length, 1,
+                           buffer->capacity - buffer->length, handle);
+
+        if (got == 0) break;
+
+        buffer->length += got;
+    }
+}
+
 static bool buffer_method(Value receiver, const char *name, Value *args, int32_t count, Value *result) {
     if (!is_obj(receiver, OBJ_BUFFER)) return false;
     (void)count;
@@ -3919,10 +3957,74 @@ static bool buffer_method(Value receiver, const char *name, Value *args, int32_t
                                                buffer_offset(buffer, args[0], 8)));
         return true;
     }
+    /* ⚠️ NO ZERO-BYTE GUARD HERE, unlike `Text`, and that is the point of it.
+       A String carries its own length and holds a zero byte perfectly well --
+       the specification says so where it explains that it was the Buffer in
+       the middle that could not -- so a span of bytes is answered whatever is
+       in it.  `Text` keeps its refusal because every recorded case compares
+       the message. */
+    if (alg_stricmp(name, "GetText") == 0) {
+        ObjBuffer *buffer = as_buffer(receiver, "GetText");
+        int32_t    width  = as_integer(args[1], "A GetText length must be an Integer.");
+
+        if (width < 0) alg_error("A GetText length cannot be negative.");
+
+        size_t at = buffer_offset(buffer, args[0], (size_t)width);
+
+        *result = alg_string_n(buffer->bytes + at, width);
+        return true;
+    }
     if (alg_stricmp(name, "Resize") == 0) {
         ObjBuffer *buffer = as_buffer(receiver, "Resize");
 
         buffer_resize(buffer, as_integer(args[0], "A Buffer's size must be an Integer."));
+
+        *result = alg_nil();
+        return true;
+    }
+
+    /* ⚠️ THE WHOLE FILE IN ONE CALL, because the caller has nowhere to put a
+       part of one.  A Buffer is the language's record of bytes and holds all
+       of them, so a position, a record size and a partial read would be three
+       pieces of state for a thing that has none. */
+    if (alg_stricmp(name, "Load") == 0) {
+        ObjBuffer  *buffer = as_buffer(receiver, "Load");
+        const char *path   = file_name_argument(args[0]);
+
+        /* "rb", which matters on Windows and is harmless everywhere else: a
+           bytecode image holds every byte there is, #13 and #26 among them. */
+        FILE *handle = host_fopen(path, "rb");
+        if (handle == NULL) file_error("Load", "cannot open ", path);
+
+        buffer_read_all(buffer, handle);
+
+        if (ferror(handle)) {
+            fclose(handle);
+            file_error("Load", "cannot read ", path);
+        }
+
+        fclose(handle);
+
+        *result = alg_nil();
+        return true;
+    }
+    if (alg_stricmp(name, "Save") == 0) {
+        ObjBuffer  *buffer = as_buffer(receiver, "Save");
+        const char *path   = file_name_argument(args[0]);
+
+        FILE *handle = host_fopen(path, "wb");
+        if (handle == NULL) file_error("Save", "cannot open ", path);
+
+        if (buffer->length > 0
+                && fwrite(buffer->bytes, 1, buffer->length, handle) != buffer->length) {
+            fclose(handle);
+            file_error("Save", "cannot write ", path);
+        }
+
+        /* ⚠️ THE CLOSE IS WHERE A FULL DISK REPORTS, so its status is read.
+           fwrite answers from the stream's own buffer and succeeds for bytes
+           that never reach the file. */
+        if (fclose(handle) != 0) file_error("Save", "cannot write ", path);
 
         *result = alg_nil();
         return true;
@@ -3954,6 +4056,7 @@ static const Member *member_of(Value receiver, const char *name) {
     static const Member buffer[] = { {"Append", 1}, {"PutInt", 2}, {"GetInt", 1},
                                      {"PutWord", 2}, {"GetWord", 1},
                                      {"PutDouble", 2}, {"GetDouble", 1},
+                                     {"GetText", 2}, {"Load", 1}, {"Save", 1},
                                      {"Resize", 1}, {"Free", 0}, {NULL, 0} };
     static const Member file[]   = { {"Assign", 1}, {"Reset", 0}, {"Rewrite", 0},
                                      {"Append", 0}, {"ReadLn", 0}, {"Write", 1},

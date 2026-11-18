@@ -1,0 +1,932 @@
+/// A compiled program as a file: bytecode written once and loaded instead of
+/// compiled again.
+///
+/// Compiling is most of what starting a program on the machine costs. The Dew
+/// Drop Inn measures 3.34 s on an Apple M-series laptop and about 13 s on a
+/// Pixel Fold, of which the dispatch loop sees none: scanning, parsing,
+/// resolving, checking and emitting are finished before the first instruction
+/// runs. An image is that work kept. `algvm --emit` writes one and `algvm`
+/// loads it, deciding by the four bytes at the front rather than by the name,
+/// so a program reaches the machine either way.
+///
+/// The format is a byte stream with a cursor and no index. Everything is
+/// little-endian, which is what [RT-022] promises of a Buffer's own accessors,
+/// so an image written on one machine reads on another. Nothing in it is
+/// aligned and nothing is compressed: the cost that mattered was the compile,
+/// and the loader is already two orders of magnitude inside it.
+///
+/// An image is NOT a second seed. It is written by one build of the machine
+/// and refused by any other, because an opcode's number is not interface --
+/// `vm/OpCode.a24` renumbers freely and a chunk is bytes that mean whatever
+/// the machine that wrote them meant. The release that wrote an image is in
+/// its header for exactly that reason.
+///
+/// # Satisfies
+///
+/// [RT-022], [RT-036]
+unit Image;
+
+uses Chunk;
+uses VmFunction;
+
+/// The four bytes every image opens with.
+///
+/// Read rather than the file's name, so the extension is a convention and an
+/// image may be called anything. `.a24b` is the convention.
+const IMAGE_MAGIC := 'A24B';
+
+/// The version of this encoding, raised whenever the bytes change meaning.
+///
+/// Separate from the release in the header because the two answer different
+/// questions: the release says whether the BYTECODE is this machine's, and
+/// this says whether the WRAPPER around it is. A reader that could not tell
+/// them apart would report a format it cannot read as a stale program.
+const IMAGE_FORMAT := 1;
+
+/// One byte of padding, reserved and then written over.
+///
+/// A Buffer grows only by Append, and Append takes a value's text rather than
+/// a byte -- `Char (200)` is two bytes of UTF-8 and not one. So a fixed-width
+/// field is reserved as that many ASCII characters and filled in with PutInt,
+/// PutDouble or a subscript, which is the one idiom in this unit worth
+/// learning before reading the rest.
+const IM_PAD1 := '.';
+
+/// Four bytes of padding, for a count, an index or a code point.
+const IM_PAD4 := '....';
+
+/// Eight bytes of padding, for a Double.
+const IM_PAD8 := '........';
+
+/// The lowest Integer a four-byte signed field holds.
+const IM_LEAST := -2147483648;
+
+/// The highest Integer a four-byte signed field holds.
+const IM_MOST := 2147483647;
+
+/// The tag for nil.
+const IM_NIL := 0;
+
+/// The tag for False.
+const IM_FALSE := 1;
+
+/// The tag for True.
+const IM_TRUE := 2;
+
+/// The tag for an Integer a four-byte signed field holds.
+const IM_INT := 3;
+
+/// The tag for an Integer it does not.
+///
+/// An Integer is unbounded [LEX-018], so a constant may be larger than any
+/// fixed field. One goes as its decimal text and is rebuilt by arithmetic,
+/// which is exact at every magnitude -- where reading it as a number would
+/// not be, since Val answers a Double [RT-009].
+const IM_BIG := 4;
+
+/// The tag for a Double, carried as the eight bytes it is.
+const IM_DOUBLE := 5;
+
+/// The tag for a String.
+const IM_TEXT := 6;
+
+/// The tag for a Char, carried as its code point.
+const IM_CHAR := 7;
+
+/// The tag for a List, carried as a count and then its elements.
+const IM_LIST := 8;
+
+/// The tag for a subprogram.
+const IM_FUNCTION := 9;
+
+/// The tag for a built-in held as a value.
+const IM_BUILTIN := 10;
+
+/// The tag for an object already written, carried as its place in the order
+/// they were first seen.
+///
+/// What keeps the object graph the same shape rather than merely equal. A
+/// built-in is one value per name -- `Length = Length` is true, and these
+/// compare by identity [VAL-011] -- so a fresh one per constant would answer
+/// false where the compiler's own interning answers true.
+const IM_AGAIN := 11;
+
+/// Every subprogram and built-in written so far, in the order first seen.
+///
+/// The reader keeps the same list and appends to it at the same points, so an
+/// index means the same object on both sides without one being written down.
+var IMAGE_SEEN := List ();
+
+/// The bytes a read is working through.
+var IMAGE_BYTES : Buffer := Nil;
+
+/// How far through them the cursor has got.
+var IMAGE_AT : Integer := 0;
+
+/// Every subprogram and built-in read so far, parallel to IMAGE_SEEN.
+var IMAGE_MADE := List ();
+
+/// The test table the image carried, empty for one emitted to run.
+var IMAGE_TESTS := List ();
+
+/// Whether the image was emitted for a test run.
+var IMAGE_FOR_TESTS := False;
+
+/// The path of the source the image was emitted from.
+///
+/// Kept so that a diagnostic names the program a reader has, rather than the
+/// artifact built from it: a failing test reports its root file, and a test
+/// run from an image has to say the same thing a test run from the source
+/// does or the two reports cannot be compared.
+var IMAGE_SOURCE := '';
+
+/// Appends Count bytes of padding and answers where they begin.
+function ImageRoom (Out : Buffer, Count : Integer) : Integer;
+begin
+    var At := Out.Length;
+
+    for var I : Integer := 0; I < Count; I := I + 1 do Out.Append (IM_PAD1);
+
+    Exit At;
+end
+
+/// Appends one byte.
+procedure ImagePutByte (Out : Buffer, B : Integer);
+begin
+    Out[ImageRoom (Out, 1)] := B;
+end
+
+/// Appends a four-byte signed field, least significant byte first.
+///
+/// # Raises
+///
+/// Whatever PutInt raises for a value four bytes cannot hold, which is a bug
+/// in the writer rather than a program's error [RT-022].
+procedure ImagePutCount (Out : Buffer, N : Integer);
+begin
+    var At := Out.Length;
+
+    Out.Append (IM_PAD4);
+    Out.PutInt (At, N);
+end
+
+/// Appends an eight-byte Double.
+procedure ImagePutDouble (Out : Buffer, X : Any);
+begin
+    var At := Out.Length;
+
+    Out.Append (IM_PAD8);
+    Out.PutDouble (At, X);
+end
+
+/// Appends a String's bytes behind their byte count.
+///
+/// The count is measured by APPENDING and taking the difference, because
+/// Length counts characters [SRC-004] and a reader has to be told bytes. One
+/// em dash makes the two differ by two, and nothing about the text says which
+/// kind of length was written.
+procedure ImagePutText (Out : Buffer, S : Any);
+begin
+    var At := Out.Length;
+
+    Out.Append (IM_PAD4);
+    Out.Append (S);
+    Out.PutInt (At, Out.Length - At - 4);
+end
+
+/// Appends any value a chunk's constants may hold.
+///
+/// # Raises
+///
+/// 'A <kind> cannot be written to a bytecode image.' for anything else, which
+/// is a refusal by name rather than a silently empty constant -- the shape
+/// CEmitter uses for what it cannot emit, and for the same reason.
+///
+/// # Examples
+///
+/// See test 'Every Kind Of Constant Survives The Round Trip'.
+///
+/// # Satisfies
+///
+/// [LEX-018], [VAL-011]
+procedure ImagePutValue (Out : Buffer, V : Any);
+begin
+    if V = Nil then
+    begin
+        ImagePutByte (Out, IM_NIL);
+        Exit;
+    end
+
+    if V is Boolean then
+    begin
+        if V as Boolean then ImagePutByte (Out, IM_TRUE);
+        else                 ImagePutByte (Out, IM_FALSE);
+
+        Exit;
+    end
+
+    if V is Integer then
+    begin
+        if V >= IM_LEAST and V <= IM_MOST then
+        begin
+            ImagePutByte  (Out, IM_INT);
+            ImagePutCount (Out, V as Integer);
+
+            Exit;
+        end
+
+        ImagePutByte (Out, IM_BIG);
+        ImagePutText (Out, Str (V));
+
+        Exit;
+    end
+
+    if V is Double then
+    begin
+        ImagePutByte   (Out, IM_DOUBLE);
+        ImagePutDouble (Out, V);
+
+        Exit;
+    end
+
+    if V is String then
+    begin
+        ImagePutByte (Out, IM_TEXT);
+        ImagePutText (Out, V);
+
+        Exit;
+    end
+
+    if V is Char then
+    begin
+        ImagePutByte  (Out, IM_CHAR);
+        ImagePutCount (Out, Ord (V));
+
+        Exit;
+    end
+
+    if V is List then
+    begin
+        ImagePutByte  (Out, IM_LIST);
+        ImagePutCount (Out, (V as List).Length);
+
+        for var Each in (V as List) do ImagePutValue (Out, Each);
+
+        Exit;
+    end
+
+    // ⚠️ THE TWO OBJECT KINDS, and the only two whose identity is observable.  A
+    // List constant is written out every time it is met, because no program can
+    // reach one: the emitter makes them for a named call's argument names and
+    // for a subrange's bounds, and both are read by the machine alone.
+    if V is VmBuiltin or V is VmFunction then
+    begin
+        var Again := IMAGE_SEEN.IndexOf (V);
+
+        if Again >= 0 then
+        begin
+            ImagePutByte  (Out, IM_AGAIN);
+            ImagePutCount (Out, Again);
+
+            Exit;
+        end
+
+        IMAGE_SEEN.Add (V);
+
+        if V is VmBuiltin then
+        begin
+            ImagePutByte (Out, IM_BUILTIN);
+            ImagePutText (Out, (V as VmBuiltin).Name);
+
+            Exit;
+        end
+
+        ImagePutByte     (Out, IM_FUNCTION);
+        ImagePutFunction (Out, V as VmFunction);
+
+        Exit;
+    end
+
+    raise 'A ' + ImageKindOf (V) + ' cannot be written to a bytecode image.';
+end
+
+/// Appends a subprogram: what a call needs, and then its body.
+///
+/// The name and the arity come FIRST and nothing else may go between them and
+/// the object's place in IMAGE_SEEN, which is what lets the reader claim the
+/// same place before it reads a body that may refer back to it.
+procedure ImagePutFunction (Out : Buffer, F : VmFunction);
+begin
+    ImagePutText  (Out, F.Name);
+    ImagePutCount (Out, F.Arity);
+
+    ImagePutValue (Out, F.Types);
+    ImagePutValue (Out, F.Written);
+    ImagePutValue (Out, F.Params);
+
+    ImagePutText (Out, F.Element);
+    ImagePutText (Out, F.Symbol);
+    ImagePutText (Out, F.Library);
+    ImagePutText (Out, F.Returns);
+
+    ImagePutChunk (Out, F.Body);
+end
+
+/// Appends a chunk: its instructions, and everything they refer to by index.
+///
+/// Count bytes of code and not Code.Length. The Buffer is longer than the
+/// instructions -- the slack is what Write appends into -- so writing all of
+/// it would put whatever the last doubling left between one chunk and the next.
+procedure ImagePutChunk (Out : Buffer, C : Chunk);
+begin
+    ImagePutCount (Out, C.Count);
+
+    // Sized once and then written through, rather than appended a byte at a
+    // time: a Resize is one realloc where Append would test for room per byte.
+    var At := Out.Length;
+
+    Out.Resize (At + C.Count);
+
+    for var I : Integer := 0; I < C.Count; I := I + 1 do Out[At + I] := C.Code[I];
+
+    ImagePutValue (Out, C.Constants);
+    ImagePutValue (Out, C.GlobalNames);
+    ImagePutValue (Out, C.GlobalKeys);
+    ImagePutValue (Out, C.LineStarts);
+    ImagePutValue (Out, C.LineNumbers);
+
+    ImagePutText (Out, C.SourceFile);
+end
+
+/// Writes a compiled program to a file.
+///
+/// The release is the machine's own version, kept so that a later build
+/// refuses an image rather than running bytecode whose opcodes have since been
+/// renumbered. The source is the path it was emitted from, for a diagnostic to
+/// name. The test table is what a test run calls and is empty otherwise.
+///
+/// # Raises
+///
+/// Whatever ImagePutValue raises for a constant it cannot write, and whatever
+/// Save raises for a file it cannot open [RT-036].
+///
+/// # Examples
+///
+/// See test 'A Program Survives A File'.
+///
+/// # Satisfies
+///
+/// [RT-036]
+procedure WriteImage (Program : Chunk, Path : String, Release : String,
+                      Source : String, ForTests : Boolean, Tests : List);
+begin
+    IMAGE_SEEN := List ();
+
+    var Out := Buffer ();
+
+    Out.Append (IMAGE_MAGIC);
+
+    ImagePutCount (Out, IMAGE_FORMAT);
+    ImagePutText  (Out, Release);
+    ImagePutText  (Out, Source);
+
+    if ForTests then ImagePutByte (Out, 1);
+    else             ImagePutByte (Out, 0);
+
+    ImagePutChunk (Out, Program);
+    ImagePutValue (Out, Tests);
+
+    Out.Save (Path);
+
+    // A Buffer is the only memory in the language that comes back, and an
+    // image is the largest one this program makes.
+    Out.Free ();
+end
+
+/// Reads one byte and steps over it.
+function ImageTakeByte () : Integer;
+begin
+    var B := IMAGE_BYTES[IMAGE_AT] as Integer;
+
+    IMAGE_AT := IMAGE_AT + 1;
+
+    Exit B;
+end
+
+/// Reads a four-byte signed field and steps over it.
+function ImageTakeCount () : Integer;
+begin
+    var N := IMAGE_BYTES.GetInt (IMAGE_AT);
+
+    IMAGE_AT := IMAGE_AT + 4;
+
+    Exit N;
+end
+
+/// Reads an eight-byte Double and steps over it.
+function ImageTakeDouble () : Double;
+begin
+    var X := IMAGE_BYTES.GetDouble (IMAGE_AT);
+
+    IMAGE_AT := IMAGE_AT + 8;
+
+    Exit X;
+end
+
+/// Reads a counted String and steps over it.
+///
+/// GetText and not Text: the count is in BYTES and a span of them is answered
+/// whatever they hold, where the whole Buffer could not be asked for its text
+/// at all -- an image has zero bytes in it by the second field [RT-022].
+function ImageTakeText () : String;
+begin
+    var Bytes := ImageTakeCount ();
+    var Said  := IMAGE_BYTES.GetText (IMAGE_AT, Bytes);
+
+    IMAGE_AT := IMAGE_AT + Bytes;
+
+    Exit Said;
+end
+
+/// Rebuilds an Integer from its decimal text, at any magnitude.
+///
+/// By arithmetic rather than through Val, which answers a Double and would
+/// round anything past fifteen digits -- and an Integer is unbounded
+/// [LEX-018], so the digits are the only exact form a fixed field has.
+///
+/// # Examples
+///
+/// See test 'An Unbounded Integer Survives As Its Digits'.
+///
+/// # Satisfies
+///
+/// [LEX-018]
+function ImageWhole (Digits : String) : Integer;
+begin
+    var Whole := 0;
+    var From   := 0;
+
+    if Length (Digits) > 0 then
+        if Digits[0] = '-' then From := 1;
+
+    for var I : Integer := From; I < Length (Digits); I := I + 1 do
+        Whole := Whole * 10 + (Ord (Digits[I]) - 48);
+
+    if From = 1 then Exit 0 - Whole;
+
+    Exit Whole;
+end
+
+/// Reads any value a chunk's constants may hold.
+///
+/// # Raises
+///
+/// 'A bytecode image holds an unknown kind of constant.' for a tag this
+/// format does not define, which an image of the right format cannot carry --
+/// so it means the stream has been read out of step and says so rather than
+/// building a wrong value.
+function ImageTakeValue () : Any;
+begin
+    var Tag := ImageTakeByte ();
+
+    if Tag = IM_NIL    then Exit Nil;
+    if Tag = IM_FALSE  then Exit False;
+    if Tag = IM_TRUE   then Exit True;
+    if Tag = IM_INT    then Exit ImageTakeCount ();
+    if Tag = IM_BIG    then Exit ImageWhole (ImageTakeText ());
+    if Tag = IM_DOUBLE then Exit ImageTakeDouble ();
+    if Tag = IM_TEXT   then Exit ImageTakeText ();
+    if Tag = IM_CHAR   then Exit Char (ImageTakeCount ());
+
+    if Tag = IM_LIST then
+    begin
+        var Many := ImageTakeCount ();
+        var Held := List ();
+
+        for var I : Integer := 0; I < Many; I := I + 1 do Held.Add (ImageTakeValue ());
+
+        Exit Held;
+    end
+
+    if Tag = IM_AGAIN then Exit IMAGE_MADE[ImageTakeCount ()];
+
+    if Tag = IM_BUILTIN then
+    begin
+        var Known := VmBuiltin (ImageTakeText ());
+
+        IMAGE_MADE.Add (Known);
+
+        Exit Known;
+    end
+
+    if Tag = IM_FUNCTION then Exit ImageTakeFunction ();
+
+    raise 'A bytecode image holds an unknown kind of constant.';
+end
+
+/// Reads a subprogram, claiming its place in IMAGE_MADE before its body.
+///
+/// The place is claimed between the arity and the first value that could refer
+/// back to it, which is where the writer claimed it -- so the two lists agree
+/// index for index without the index being in the file.
+function ImageTakeFunction () : VmFunction;
+begin
+    var Named := ImageTakeText ();
+    var Takes := ImageTakeCount ();
+
+    var Made := VmFunction (Named, Takes);
+
+    IMAGE_MADE.Add (Made);
+
+    Made.Types   := ImageTakeValue () as List;
+    Made.Written := ImageTakeValue () as List;
+    Made.Params  := ImageTakeValue () as List;
+
+    Made.Element := ImageTakeText ();
+    Made.Symbol  := ImageTakeText ();
+    Made.Library := ImageTakeText ();
+    Made.Returns := ImageTakeText ();
+
+    Made.Body := ImageTakeChunk ();
+
+    Exit Made;
+end
+
+/// Reads a chunk.
+function ImageTakeChunk () : Chunk;
+begin
+    var Made := Chunk ();
+    var Many := ImageTakeCount ();
+
+    // At least one byte, because a Buffer of none has no bytes at all and the
+    // C dispatch loop takes their address.  An `external` declaration's body
+    // is empty and is never entered, so the byte is never read.
+    var Room := Many;
+    if Room < 1 then Room := 1;
+
+    Made.Code  := Buffer (Room);
+    Made.Count := Many;
+
+    for var I : Integer := 0; I < Many; I := I + 1 do
+        Made.Code[I] := IMAGE_BYTES[IMAGE_AT + I];
+
+    IMAGE_AT := IMAGE_AT + Many;
+
+    Made.Constants   := ImageTakeValue () as List;
+    Made.GlobalNames := ImageTakeValue () as List;
+    Made.GlobalKeys  := ImageTakeValue () as List;
+    Made.LineStarts  := ImageTakeValue () as List;
+    Made.LineNumbers := ImageTakeValue () as List;
+
+    Made.SourceFile := ImageTakeText ();
+
+    Exit Made;
+end
+
+/// Loads a file and answers whether it holds a bytecode image.
+///
+/// The whole file, because there is no way to read part of one and no reason
+/// to want one: a source file is a few tens of kilobytes and an image is the
+/// thing about to be decoded. The bytes stay here for ImageProgram to read.
+///
+/// # Raises
+///
+/// Whatever Load raises for a file that cannot be read [RT-036].
+///
+/// # Satisfies
+///
+/// [RT-036]
+function IsAnImage (Path : String) : Boolean;
+begin
+    IMAGE_BYTES := Buffer ();
+    IMAGE_BYTES.Load (Path);
+
+    if IMAGE_BYTES.Length < 4 then Exit False;
+
+    Exit IMAGE_BYTES.GetText (0, 4) = IMAGE_MAGIC;
+end
+
+/// Decodes the image IsAnImage loaded and answers its program.
+///
+/// # Raises
+///
+/// 'This image is format N and this algvm reads format M.  Re-emit it.' for an
+/// encoding this build does not know, and 'This image was written by algvm X
+/// and this is algvm Y.  Re-emit it.' for bytecode another build produced --
+/// which is a refusal rather than a check that could be waived, because an
+/// opcode's number is not interface and the same bytes mean different
+/// instructions in two builds.
+///
+/// # Examples
+///
+/// See test 'An Image From Another Release Is Refused'.
+function ImageProgram (Release : String) : Chunk;
+begin
+    IMAGE_AT   := 4;
+    IMAGE_MADE := List ();
+
+    var Format := ImageTakeCount ();
+
+    if Format <> IMAGE_FORMAT then
+        raise 'This image is format ' + Str (Format) + ' and this algvm reads format '
+            + Str (IMAGE_FORMAT) + '.  Re-emit it.';
+
+    var Wrote := ImageTakeText ();
+
+    if Wrote <> Release then
+        raise 'This image was written by algvm ' + Wrote + ' and this is algvm '
+            + Release + '.  Re-emit it.';
+
+    IMAGE_SOURCE    := ImageTakeText ();
+    IMAGE_FOR_TESTS := ImageTakeByte () <> 0;
+
+    var Program := ImageTakeChunk ();
+
+    IMAGE_TESTS := ImageTakeValue () as List;
+
+    // The bytes have all been copied out by now -- a String read from one is
+    // its own -- so the largest allocation of the load is given back before
+    // the program runs rather than at exit.
+    IMAGE_BYTES.Free ();
+
+    Exit Program;
+end
+
+/// The test table the image carried, in the order the compile found them.
+function ImageTests () : List;
+begin
+    Exit IMAGE_TESTS;
+end
+
+/// The path of the source the image was emitted from.
+function ImageSource () : String;
+begin
+    Exit IMAGE_SOURCE;
+end
+
+/// Whether the image was emitted for a test run rather than to be run.
+///
+/// The two cannot be one image: under `--test` a unit's bare statements are
+/// not compiled at all and its test bodies are, so what is in the chunk
+/// differs [TST-003].
+///
+/// # Satisfies
+///
+/// [TST-003]
+function ImageForTests () : Boolean;
+begin
+    Exit IMAGE_FOR_TESTS;
+end
+
+/// Names a value's kind for a refusal, or 'value' where it has no class.
+///
+/// A fourth copy of the question ClassNameOf answers for the two walkers: a
+/// unit outside them has no access to either, so the class is asked for
+/// directly and the failure is caught. The handler is on String because that
+/// is what a host error arrives as -- an `on E : Any` arm matches nothing
+/// [VAL-005].
+function ImageKindOf (V : Any) : String;
+begin
+    try
+        Exit Str (V.ClassName);
+    except
+        on E : String do Exit 'value';
+    end
+end
+
+test 'An Unbounded Integer Survives As Its Digits';
+begin
+    AssertEqual (0, ImageWhole ('0'));
+    AssertEqual (7, ImageWhole ('7'));
+    AssertEqual (-7, ImageWhole ('-7'));
+    AssertEqual (2147483648, ImageWhole ('2147483648'));
+
+    // Past anything a Double could hold exactly, which is why Val is not what
+    // reads this back.
+    var Huge := 123456789012345678901234567890;
+
+    AssertEqual (Huge, ImageWhole (Str (Huge)));
+    AssertEqual (0 - Huge, ImageWhole (Str (0 - Huge)));
+end
+
+test 'Every Kind Of Constant Survives The Round Trip';
+begin
+    var Out := Buffer ();
+
+    IMAGE_SEEN := List ();
+
+    var Given := [Nil, True, False, 0, -1, 2147483647, -2147483648,
+                  123456789012345678901234567890, 1.0, -0.1, 'text', '',
+                  Char (0), Char (955), [1, ['nested'], 3]];
+
+    for var Each in Given do ImagePutValue (Out, Each);
+
+    IMAGE_BYTES := Out;
+    IMAGE_AT    := 0;
+    IMAGE_MADE  := List ();
+
+    for var Each in Given do
+    begin
+        var Back := ImageTakeValue ();
+
+        // Compared as text as well as by value, because 1 and 1.0 compare
+        // equal and render differently -- so equality alone would pass a
+        // round trip that lost the type.  And the type is asked about
+        // directly, because a Char and a one-character String render the same
+        // and are not the same thing [TYP-003].
+        AssertEqual (Str (Each), Str (Back));
+
+        AssertTrue ((Each is Integer) = (Back is Integer));
+        AssertTrue ((Each is Double)  = (Back is Double));
+        AssertTrue ((Each is String)  = (Back is String));
+        AssertTrue ((Each is Char)    = (Back is Char));
+        AssertTrue ((Each is Boolean) = (Back is Boolean));
+        AssertTrue ((Each is List)    = (Back is List));
+    end
+end
+
+test 'A Built-In Constant Is One Value However Often It Is Written';
+begin
+    var Out := Buffer ();
+
+    IMAGE_SEEN := List ();
+
+    var Known := VmBuiltin ('Length');
+
+    ImagePutValue (Out, Known);
+    ImagePutValue (Out, Known);
+
+    IMAGE_BYTES := Out;
+    IMAGE_AT    := 0;
+    IMAGE_MADE  := List ();
+
+    var First  := ImageTakeValue ();
+    var Second := ImageTakeValue ();
+
+    // Identity, which is what `Length = Length` rests on [VAL-011].
+    AssertTrue (First = Second);
+    AssertEqual ('Length', (First as VmBuiltin).Name);
+end
+
+test 'A Chunk Survives The Round Trip';
+begin
+    var C := Chunk ();
+
+    C.SourceFile := 'probe.a24';
+    C.MarkLine (12);
+    C.EmitConstant (42);
+    C.Emit (0);
+    C.GlobalSlot ('Total');
+    C.QualifiedSlot ('alpha', 'Shared');
+
+    var Out := Buffer ();
+
+    IMAGE_SEEN := List ();
+    ImagePutChunk (Out, C);
+
+    IMAGE_BYTES := Out;
+    IMAGE_AT    := 0;
+    IMAGE_MADE  := List ();
+
+    var Back := ImageTakeChunk ();
+
+    AssertEqual (C.Count, Back.Count);
+    AssertEqual (C.At (0), Back.At (0));
+    AssertEqual (C.At (1), Back.At (1));
+    AssertEqual (42, Back.Constants[0] as Integer);
+    AssertEqual ('probe.a24', Back.SourceFile);
+    AssertEqual (12, Back.LineAt (0));
+    AssertEqual ('Total', Str (Back.GlobalNames[0]));
+    AssertEqual ('alpha:shared', Str (Back.GlobalKeys[1]));
+
+    // The slack is not carried: a chunk's Code is longer than its Count, and
+    // writing all of it would put the last doubling's leftovers in the file.
+    AssertEqual (C.Count, Back.Code.Length);
+end
+
+test 'A Subprogram Carries Its Signature And Its Body';
+begin
+    var F := VmFunction ('Twice', 1);
+
+    F.Types.Add ('Integer');
+    F.Written.Add ('Small');
+    F.Params.Add ('n');
+    F.Element := 'Integer';
+    F.Symbol  := 'twice_c';
+    F.Library := 'libtwice';
+    F.Returns := 'Integer';
+    F.Body.EmitConstant (2);
+
+    var Out := Buffer ();
+
+    IMAGE_SEEN := List ();
+    ImagePutValue (Out, F);
+
+    IMAGE_BYTES := Out;
+    IMAGE_AT    := 0;
+    IMAGE_MADE  := List ();
+
+    var Back := ImageTakeValue () as VmFunction;
+
+    AssertEqual ('Twice', Back.Name);
+    AssertEqual (1, Back.Arity);
+    AssertEqual ('Integer', Str (Back.Types[0]));
+    AssertEqual ('Small', Str (Back.Written[0]));
+    AssertEqual ('n', Str (Back.Params[0]));
+    AssertEqual ('Integer', Back.Element);
+    AssertEqual ('twice_c', Back.Symbol);
+    AssertEqual ('libtwice', Back.Library);
+    AssertEqual ('Integer', Back.Returns);
+    AssertEqual (2, Back.Body.Constants[0] as Integer);
+end
+
+test 'A Program Survives A File';
+begin
+    var C := Chunk ();
+
+    C.SourceFile := 'probe.a24';
+    C.EmitConstant ('held');
+
+    WriteImage (C, 'image-probe.tmp', '9.9.9', 'root.a24', True,
+                [['probe.a24', 'A Test', 3]]);
+
+    AssertTrue (IsAnImage ('image-probe.tmp'));
+
+    var Back := ImageProgram ('9.9.9');
+
+    AssertEqual ('held', Str (Back.Constants[0]));
+    AssertEqual ('probe.a24', Back.SourceFile);
+    AssertEqual ('root.a24', ImageSource ());
+    AssertTrue (ImageForTests ());
+    AssertEqual ('A Test', Str ((ImageTests ()[0] as List)[1]));
+
+    var Tidy := TextFile ();
+    Tidy.Assign ('image-probe.tmp');
+    Tidy.Erase ();
+end
+
+test 'An Image From Another Release Is Refused';
+begin
+    var C := Chunk ();
+
+    C.EmitConstant (1);
+
+    WriteImage (C, 'image-stale.tmp', '0.0.1', 'root.a24', False, []);
+
+    AssertTrue (IsAnImage ('image-stale.tmp'));
+
+    try
+        var Ignored := ImageProgram ('0.0.2');
+
+        Fail ('expected a raise');
+    except
+        on E : String do
+            AssertEqual ('This image was written by algvm 0.0.1 and this is algvm 0.0.2.'
+                       + '  Re-emit it.', E);
+    end
+
+    var Tidy := TextFile ();
+    Tidy.Assign ('image-stale.tmp');
+    Tidy.Erase ();
+end
+
+test 'A Source File Is Not An Image';
+begin
+    var Scratch := TextFile ();
+
+    Scratch.Assign ('image-source.tmp');
+    Scratch.Rewrite ();
+    Scratch.WriteLn ('WriteLn (''hello'');');
+    Scratch.Close ();
+
+    AssertTrue (not IsAnImage ('image-source.tmp'));
+
+    Scratch.Erase ();
+
+    // And neither is a file with nothing in it, which is the shorter-than-the
+    // -magic case.
+    var Empty := Buffer ();
+
+    Empty.Save ('image-empty.tmp');
+
+    AssertTrue (not IsAnImage ('image-empty.tmp'));
+
+    Scratch.Assign ('image-empty.tmp');
+    Scratch.Erase ();
+end
+
+test 'A Constant No Image Can Hold Is Refused By Name';
+begin
+    var Out := Buffer ();
+
+    IMAGE_SEEN := List ();
+
+    try
+        ImagePutValue (Out, Map ());
+
+        Fail ('expected a raise');
+    except
+        on E : String do
+            AssertEqual ('A value cannot be written to a bytecode image.', E);
+    end
+end

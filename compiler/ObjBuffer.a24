@@ -118,6 +118,10 @@ begin
         if Member = 'getword'   then Exit BufferMethod (this, TheName, 1);
         if Member = 'putdouble' then Exit BufferMethod (this, TheName, 2);
         if Member = 'getdouble' then Exit BufferMethod (this, TheName, 1);
+        if Member = 'gettext'   then Exit BufferMethod (this, TheName, 2);
+
+        if Member = 'load' then Exit BufferMethod (this, TheName, 1);
+        if Member = 'save' then Exit BufferMethod (this, TheName, 1);
 
         if Member = 'resize' then Exit BufferMethod (this, TheName, 1);
         if Member = 'free'   then Exit BufferMethod (this, TheName, 0);
@@ -148,6 +152,10 @@ begin
         if Name = 'getword'   then Exit Handle.GetWord (Arguments[0]);
         if Name = 'putdouble' then Exit Handle.PutDouble (Arguments[0], Arguments[1]);
         if Name = 'getdouble' then Exit Handle.GetDouble (Arguments[0]);
+        if Name = 'gettext'   then Exit Handle.GetText (Arguments[0], Arguments[1]);
+
+        if Name = 'load' then Exit Handle.Load (Arguments[0]);
+        if Name = 'save' then Exit Handle.Save (Arguments[0]);
 
         if Name = 'resize' then Exit Handle.Resize (Arguments[0]);
         if Name = 'free'   then Exit Handle.Free ();
