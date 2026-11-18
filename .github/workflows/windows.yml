@@ -145,7 +145,18 @@ jobs:
           ./vm/algvm bytes.a24b > from-image.txt || echo "image exited $?"
           cat from-image.txt
 
-          cmp from-source.txt from-image.txt
+          # ⚠️ NOT cmp, AND NOT diff.  This job installs gcc, libffi, SDL2 and
+          # pkgconf and nothing else, so diffutils is absent and `cmp` fails
+          # with `command not found` and exit 127 -- which looked exactly like
+          # the round trip failing and was the round trip passing.  Command
+          # substitution strips trailing newlines from both sides equally, so
+          # the comparison is still fair.
+          if [ "$(cat from-source.txt)" = "$(cat from-image.txt)" ]; then
+            echo "the image answers what the compile answers"
+          else
+            echo "the image and the compile disagree"
+            exit 1
+          fi
 
           echo "--- and the test-mode refusal ---"
           ./vm/algvm --test bytes.a24b && echo "a run image took --test" && exit 1
