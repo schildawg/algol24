@@ -14,6 +14,121 @@ go stale.
 
 ---
 
+## v0.5.0 — a compiled program as a file
+
+Starting a program on the bytecode machine meant compiling it first, every
+time. For `shroom-slots` that is about **3.4 s** on an Apple laptop and about
+**13 s** on a Pixel Fold, and none of it is the machine: scanning, parsing,
+resolving, checking and emitting all finish before the first instruction runs.
+The game then runs at 31 fps, so a player waited about a hundred frames' worth
+of compiling before seeing one frame.
+
+```sh
+algvm --emit inn.a24 --out=inn.a24b    # once, and keep the file
+algvm inn.a24b                         # 14 ms instead of 3.4 s
+```
+
+The image for the Dew Drop Inn is 554 KB, writing it costs 32 ms, and the whole
+process goes from 3.4 s to **0.02**.
+
+**A file says which kind it is by its first four bytes, not by its name.** So
+`.a24b` is a convention, `algvm whatever` works either way, and nothing had to
+learn a new command to run an already-compiled program.
+
+**An image is a build artifact and not a second seed.** It carries the release
+that wrote it and any other build refuses it:
+
+```
+This image was written by algvm 0.5.0 and this is algvm 0.5.1.  Re-emit it.
+```
+
+That is not caution. An opcode's **number** has never been part of this
+language's interface — the machine renumbers them freely, and the advice for
+adding one is to append it and renumber nothing *because* the number promises
+nothing. The same bytes therefore mean different instructions in two builds,
+and an image is bytecode. Checking the release is what makes that safe to
+publish rather than a trap to document.
+
+⚠️ **Nothing checks that an image is newer than the source it came from**,
+because the language cannot ask a file its age. A stale image runs stale code
+until it is re-emitted, so re-emit it as a build step rather than by hand if
+the program is changing.
+
+### Test runs have their own image
+
+`--test` changes what gets compiled rather than what gets run — a unit's bare
+statements are left out and its test bodies put in — so one file cannot serve
+both modes. `algvm --emit --test lobby.a24 --out=lobby-test.a24b` writes a test
+image, and asking for the wrong mode is refused by name rather than run.
+
+Worth the second artifact for a reason the last release recorded: **nothing was
+running `algvm --test`** when a crash in the machine's own emitter was found
+downstream, and a three-second wait per run is part of why. `lobby.a24`'s suite
+now runs from an image, with a report identical to the compiled one.
+
+### A Buffer reaches a file
+
+This is the language's own part of the release, and it closes a gap that had
+nothing to do with the machine.
+
+A `Buffer` has been the language's record of bytes for several releases: a
+documented byte order, `PutInt`, `GetInt`, `PutWord`, `GetWord`, `PutDouble`,
+`GetDouble`, byte subscripting. What it could not do was reach a file. A
+`TextFile` reads and writes **lines of text**, and `Buffer.Text` refuses a
+buffer holding a zero byte — so bytes could be held by this language and never
+stored. An image, a record, a sound, a sprite sheet all needed C, and two
+projects had already written that C.
+
+| | |
+| --- | --- |
+| `B.Load (Name)` | the file's bytes become the Buffer's |
+| `B.Save (Name)` | the Buffer's bytes become the file's |
+| `B.GetText (At, Length)` | those bytes as a String |
+
+`GetText` is the inverse `Append` never had: a record written into a Buffer
+could be read back field by field for every type except text, which is the one
+a file format is mostly made of. It answers whatever bytes are there, where
+`Text` refuses a zero byte — deliberately, because a String carries its own
+length and holds one perfectly well. It was the Buffer in the middle that could
+not.
+
+There is no `PutText`, and none is needed. A Buffer grows by `Append`, which
+takes a String's bytes already, and a fixed-width field is written by reserving
+that many characters and writing through them:
+
+```algol24
+var At := Out.Length;
+
+Out.Append ('....');
+Out.PutInt (At, N);
+```
+
+`Load` and `Save` are **whole-file**, because a Buffer holds all of a file or
+none of it — a position, a record size and a partial read are state it has not
+got. A program that wants those has `TextFile` for text and the foreign
+function interface for anything else.
+
+### The compiler's formula carries the library
+
+`brew install algol24` installed a language with nothing to write programs
+against: `uses graph;` resolved nowhere, because the runtime library was
+bundled only with `algol24-vm`. Both formulae now carry it, pinned to the same
+release, so the compiler and the machine agree about which library is installed
+and either one alone is a working setup.
+
+### Upgrading
+
+Nothing to change. Every program that ran before runs unchanged, no rule was
+altered, and the three new members are additions — a program that declared its
+own `Load` or `Save` on something that is not a `Buffer` is unaffected, since
+these are members of a resource and not names in scope.
+
+An image is optional. A program is still run from its source exactly as
+before, and the only reason to emit one is that starting it costs more than you
+want to pay.
+
+---
+
 ## v0.4.2 — what running the unit tests found, which the build and the gate did not
 
 No language change. Three defects, all of them older than the release that

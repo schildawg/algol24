@@ -31,7 +31,8 @@ var HOST_METHODS := ['pop', 'peek', 'keys', 'values', 'tolist', 'tostring',
                      'indexof', 'getint', 'getword', 'getdouble', 'add',
                      'push', 'remove', 'removeat', 'fill', 'resize', 'assign',
                      'rename', 'write', 'writeln', 'put', 'set', 'insert',
-                     'putint', 'putword', 'putdouble'];
+                     'putint', 'putword', 'putdouble', 'gettext', 'load',
+                     'save'];
 
 /// Whether a host receiver has a member of a name, which depends on its KIND.
 ///
@@ -79,6 +80,7 @@ begin
         Exit Named = 'append'    or Named = 'putint'    or Named = 'getint'
           or Named = 'putword'   or Named = 'getword'
           or Named = 'putdouble' or Named = 'getdouble'
+          or Named = 'gettext'   or Named = 'load'      or Named = 'save'
           or Named = 'resize'    or Named = 'free';
 
     if Self is TextFile then
@@ -2915,6 +2917,8 @@ begin
         if Name = 'rename'    then begin Push (Self.Rename (A)); Exit; end
         if Name = 'write'     then begin Push (Self.Write (A)); Exit; end
         if Name = 'writeln'   then begin Push (Self.WriteLn (A)); Exit; end
+        if Name = 'load'      then begin Push (Self.Load (A)); Exit; end
+        if Name = 'save'      then begin Push (Self.Save (A)); Exit; end
     end
 
     if Count = 2 then
@@ -2925,6 +2929,7 @@ begin
         if Name = 'putint'    then begin Push (Self.PutInt (A, B)); Exit; end
         if Name = 'putword'   then begin Push (Self.PutWord (A, B)); Exit; end
         if Name = 'putdouble' then begin Push (Self.PutDouble (A, B)); Exit; end
+        if Name = 'gettext'   then begin Push (Self.GetText (A, B)); Exit; end
     end
 
     // A name that is not one of the host's methods at all is an undefined

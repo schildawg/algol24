@@ -87,6 +87,7 @@ end
 
 var Resources := ['Length', 'IsEmpty', 'Text', 'Address', 'Append', 'PutInt',
                   'GetInt', 'PutWord', 'GetWord', 'PutDouble', 'GetDouble',
+                  'GetText', 'Load', 'Save',
                   'Resize', 'Free', 'Eof', 'Assign', 'Reset',
                   'Rewrite', 'ReadLn', 'Write', 'WriteLn', 'Flush', 'Close',
                   'Erase', 'Rename'];
@@ -117,6 +118,9 @@ begin
             'GetWord'   : Ignored := B.GetWord;
             'PutDouble' : Ignored := B.PutDouble;
             'GetDouble' : Ignored := B.GetDouble;
+            'GetText'   : Ignored := B.GetText;
+            'Load'      : Ignored := B.Load;
+            'Save'      : Ignored := B.Save;
             'Resize'  : Ignored := B.Resize;
             'Free'    : Ignored := B.Free;
             'Eof'     : Ignored := B.Eof;
@@ -150,6 +154,9 @@ begin
             'GetWord'   : Ignored := Probe.GetWord;
             'PutDouble' : Ignored := Probe.PutDouble;
             'GetDouble' : Ignored := Probe.GetDouble;
+            'GetText'   : Ignored := Probe.GetText;
+            'Load'      : Ignored := Probe.Load;
+            'Save'      : Ignored := Probe.Save;
             'Resize'  : Ignored := Probe.Resize;
             'Free'    : Ignored := Probe.Free;
             'Eof'     : Ignored := Probe.Eof;
